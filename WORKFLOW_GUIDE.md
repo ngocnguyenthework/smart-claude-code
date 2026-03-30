@@ -10,12 +10,15 @@ A Claude Code configuration for full-stack, DevOps, and agentic development. Cov
 2. [Directory Structure](#directory-structure)
 3. [Context Switching](#context-switching)
 4. [Session Memory](#session-memory)
-5. [Daily Workflow Patterns](#daily-workflow-patterns)
-6. [Commands Reference](#commands-reference)
-7. [Agent Reference](#agent-reference)
-8. [Skills Library](#skills-library)
-9. [Safety Guardrails](#safety-guardrails)
-10. [Tips](#tips)
+5. [Core Workflow Pipeline](#core-workflow-pipeline)
+6. [Daily Workflow Patterns](#daily-workflow-patterns)
+7. [Autonomous Loop Patterns](#autonomous-loop-patterns)
+8. [Commands Reference](#commands-reference)
+9. [Agent Reference](#agent-reference)
+10. [Skills Library](#skills-library)
+11. [MCP Servers](#mcp-servers)
+12. [Safety Guardrails](#safety-guardrails)
+13. [Tips](#tips)
 
 ---
 
@@ -47,7 +50,7 @@ cp /path/to/smartclaude/agents/*.md .claude/agents/
 cp -r /path/to/smartclaude/rules/common .claude/rules/
 cp -r /path/to/smartclaude/rules/nestjs .claude/rules/    # your stack
 cp /path/to/smartclaude/commands/*.md ~/.claude/commands/ # user-level for global access
-cp /path/to/smartclaude/skills/*.md ~/.claude/skills/
+cp -r /path/to/smartclaude/skills/* ~/.claude/skills/
 ```
 
 ### Shell aliases
@@ -115,21 +118,26 @@ smartclaude/
     learn.md
     prompt-optimize.md
     checkpoint.md
-  skills/                       # 14 skill files
-    git-workflow.md
-    coding-standards.md
-    context-budget.md
-    agentic-engineering.md
-    api-design.md
-    backend-patterns.md
-    frontend-patterns.md
-    blueprint.md
-    deployment-patterns.md
-    database-migrations.md
-    docker-patterns.md
-    autonomous-loops.md
-    iterative-retrieval.md
-    deep-research.md
+  skills/                       # 19 skills (each in its own folder/SKILL.md)
+    agent-harness-construction/
+    agentic-engineering/        # + AI-first signals, compaction guide, ADR format
+    api-design/
+    autonomous-loops/
+    backend-patterns/
+    blueprint/
+    codebase-onboarding/
+    coding-standards/
+    content-hash-cache-pattern/
+    context-budget/
+    continuous-learning-v2/
+    database-migrations/
+    deep-research/              # + Exa MCP tool reference
+    deployment-patterns/
+    docker-patterns/
+    frontend-patterns/
+    git-workflow/
+    search-first/               # + progressive codebase retrieval
+    verification-loop/
   rules/
     common/                     # 10 universal rules
     nestjs/
@@ -218,16 +226,49 @@ PreCompact       → appends compaction marker to active session file
 
 ---
 
+## Core Workflow Pipeline
+
+Every feature follows this 5-phase orchestrator pattern. Each phase produces one clear output that becomes the input for the next.
+
+```
+Phase 1: RESEARCH   → Explore (read-only)    → research findings
+Phase 2: PLAN       → Planner agent (Opus)   → plan.md with phases + risks
+Phase 3: IMPLEMENT  → TDD workflow            → code changes
+Phase 4: REVIEW     → Stack reviewer (Sonnet) → review comments
+Phase 5: VERIFY     → Build-error-resolver   → green build or loop back
+```
+
+**Eval-first principle**: Before starting Phase 3, define your done condition — a specific test or behavior that would prove the feature works. This prevents scope drift and makes Phase 5 unambiguous.
+
+**Research before coding (mandatory):**
+1. Search GitHub for existing implementations and patterns
+2. Check library docs with `context7` MCP for framework-specific behavior
+3. Search package registries before writing utility code
+4. Adopt proven approaches over writing net-new code
+
+**Reviewing AI-generated code — where to focus:**
+- Invariants and edge cases the model may have assumed away
+- Error boundaries (what happens when the happy path fails)
+- Security and auth assumptions (especially implicit trust)
+- Hidden coupling that makes code hard to change or roll back
+
+Skip style disagreements when automated format/lint already enforces style.
+
+---
+
 ## Daily Workflow Patterns
 
 ### Start any session
 
 ```bash
-# Start fresh with previous context auto-loaded
 claude-dev        # for coding
 claude-research   # for exploring a codebase you don't know
 claude-review     # for reviewing a PR
 ```
+
+Session memory loads automatically — previous tasks, files, and branch context are injected.
+
+---
 
 ### New feature (any stack)
 
@@ -241,6 +282,40 @@ claude-review     # for reviewing a PR
 6. /learn                  → optionally extract reusable patterns
 ```
 
+---
+
+### Large feature (Blueprint)
+
+Use the `blueprint` skill when work spans multiple sessions or team members.
+
+```
+1. State objective as a testable outcome:
+   "Users can log in with email/password and persist sessions"
+   (NOT: "add auth")
+
+2. Map dependency graph:
+   [DB schema] → [Auth service] → [JWT middleware] → [Protected routes]
+                → [Email service] → [Password reset]
+
+3. Break into independently-deployable phases:
+   Phase 1: Foundation (schema + core service)
+   Phase 2: Core experience (endpoints + JWT)
+   Phase 3: Edge cases (reset, expiry, rate limiting)
+   Phase 4: Hardening (audit logs, brute force, security review)
+
+4. Detect parallelizable steps:
+   DB schema + Email templates (no dependency)
+   Frontend components + Backend endpoints (interface-driven)
+
+5. Apply adversarial review before advancing each phase:
+   - "How does this fail at 10x load?"
+   - "What happens if this service is unavailable?"
+   - "What's the attack surface we've created?"
+   - "Can we roll this back independently?"
+```
+
+---
+
 ### Backend feature (NestJS)
 
 ```
@@ -252,6 +327,8 @@ claude-review     # for reviewing a PR
 6. /code-review
 7. Commit: "feat(users): add user CRUD endpoints"
 ```
+
+---
 
 ### Backend feature (FastAPI)
 
@@ -266,6 +343,8 @@ claude-review     # for reviewing a PR
 8. Commit
 ```
 
+---
+
 ### Infrastructure change (Terraform)
 
 ```
@@ -278,6 +357,8 @@ claude-review     # for reviewing a PR
 7. PR → approval → terraform apply
 ```
 
+---
+
 ### Kubernetes deployment
 
 ```
@@ -287,6 +368,8 @@ claude-review     # for reviewing a PR
 4. kubectl diff -f manifests/
 5. PR → merge → ArgoCD sync or kubectl apply
 ```
+
+---
 
 ### Frontend feature (Next.js)
 
@@ -302,6 +385,8 @@ claude-review     # for reviewing a PR
 9. Commit
 ```
 
+---
+
 ### Bug fix (any stack)
 
 ```
@@ -314,6 +399,8 @@ claude-review     # for reviewing a PR
 7. Commit: "fix: <description>"
 ```
 
+---
+
 ### Dead code cleanup
 
 ```
@@ -325,22 +412,152 @@ claude-review     # for reviewing a PR
 3. Commit: "refactor: remove dead code"
 ```
 
+---
+
 ### Architecture decision
 
 ```
-1. Ask architect agent directly: "Design a caching strategy for the feed API"
+1. Ask architect agent: "Design a caching strategy for the feed API"
 2. Agent produces: design doc, trade-off comparison, ADR
 3. Confirm approach → /plan → implement
 ```
 
+---
+
 ### Research before coding
 
 ```
-1. claude-research  (read widely, ask questions, no code until understanding is clear)
-2. Explore codebase with iterative-retrieval pattern:
-   - broad search → evaluate relevance → refine → repeat (max 3 cycles)
-3. Switch to claude-dev to implement
+1. claude-research  (read widely before concluding — no code until understanding is clear)
+2. Use the progressive retrieval pattern (search-first skill) to find relevant files:
+   Cycle 1: broad keywords → score each file (0-1)
+   Cycle 2: add discovered terminology, refine search
+   Cycle 3: fill remaining gaps
+   Stop when ≥3 high-relevance files and no critical gaps
+3. /checkpoint research      → save findings
+4. Switch to claude-dev to implement
 ```
+
+---
+
+## Autonomous Loop Patterns
+
+For scripted or multi-day workflows, use `claude -p` (headless mode). Each step gets a fresh context window; chain via filesystem state.
+
+### Pattern selection
+
+```
+Single focused change?              → Sequential Pipeline
+Has RFC/spec + parallel work?       → Ralphinho (DAG)
+Has RFC/spec, no parallelism?       → Continuous Claude
+Many variations of same thing?      → Infinite Agentic Loop
+Quick iteration with cleanup?       → Sequential Pipeline + De-Sloppify
+```
+
+---
+
+### Sequential Pipeline
+
+```bash
+#!/bin/bash
+set -e
+
+# Step 1: Implement
+claude -p "Read docs/auth-spec.md. Implement OAuth2 login in src/auth/ with TDD."
+
+# Step 2: De-sloppify (separate context, focused cleanup)
+claude -p "Review all changed files. Remove unnecessary type tests, defensive checks
+for impossible states, console.log. Keep business logic tests. Run test suite."
+
+# Step 3: Verify
+claude -p "Run build, lint, typecheck, and tests. Fix any failures. No new features."
+
+# Step 4: Commit
+claude -p "Create a conventional commit: 'feat: add OAuth2 login flow'"
+```
+
+**With model routing:**
+```bash
+claude -p --model opus "Analyze architecture and write a caching plan to docs/plan.md"
+claude -p "Implement the caching layer per docs/plan.md"        # Sonnet (default)
+claude -p --model opus "Review all changes for security issues and edge cases"
+```
+
+**With tool restrictions:**
+```bash
+claude -p --allowedTools "Read,Grep,Glob" "Audit for security vulnerabilities"
+claude -p --allowedTools "Read,Write,Edit,Bash" "Implement fixes from audit.md"
+```
+
+---
+
+### De-Sloppify Pass
+
+Add a focused cleanup agent **after** any implementation step instead of constraining with negative instructions. Negative instructions ("don't test type systems") degrade overall quality — a separate cleanup pass doesn't.
+
+```bash
+# WRONG: constraining the implementer
+claude -p "Implement feature X. Don't add unnecessary checks."
+
+# RIGHT: let it be thorough, clean up separately
+claude -p "Implement feature X with full TDD."
+claude -p "Cleanup pass: remove tests that verify language/framework behavior,
+redundant type checks, over-defensive error handling for impossible states,
+console.log, commented-out code. Run tests to verify nothing breaks."
+```
+
+---
+
+### Continuous Claude PR Loop
+
+Runs Claude in a loop — creates PRs, waits for CI, and merges automatically.
+
+```bash
+continuous-claude --prompt "Add unit tests for all untested functions" --max-runs 10
+continuous-claude --prompt "Fix linter errors" --max-cost 5.00
+continuous-claude --prompt "Add auth feature" --max-runs 10 \
+  --review-prompt "Run npm test && npm run lint, fix failures"
+```
+
+Use `SHARED_TASK_NOTES.md` to bridge context across iterations:
+
+```markdown
+## Progress
+- [x] Added auth tests (iteration 1)
+- [ ] Still need: rate limiting tests
+
+## Next Steps
+- Focus on rate limiting module
+```
+
+Stop conditions: `--max-runs N`, `--max-cost $X`, `--max-duration 2h`, or `--completion-signal "DONE"`.
+
+---
+
+### RFC-Driven DAG (Ralphinho)
+
+For large features. Decomposes an RFC into a dependency DAG, runs each unit through a quality pipeline in isolated worktrees, lands via merge queue.
+
+**Complexity tiers:**
+- **trivial**: implement → test
+- **small**: implement → test → code-review
+- **medium**: research → plan → implement → test → PRD-review + code-review → fix
+- **large**: + final-review
+
+**Key principles:**
+- Each stage runs in its own context window (reviewer never wrote the code it reviews)
+- Each unit runs in its own worktree (no cross-unit contamination)
+- Non-overlapping units land in parallel; overlapping land one-by-one
+- Evicted units from merge conflicts get conflict context on next pass
+
+---
+
+### Autonomous Loop Anti-Patterns
+
+1. **No exit condition** — always set max-runs, max-cost, or a completion signal
+2. **No context bridge** — use `SHARED_TASK_NOTES.md` or filesystem state between `claude -p` calls
+3. **Retrying same failure blindly** — capture error context and feed it to next attempt
+4. **Negative instructions** — use a de-sloppify pass instead
+5. **All agents in one context window** — reviewer should never be the author
 
 ---
 
@@ -401,7 +618,47 @@ claude-review     # for reviewing a PR
 | `doc-updater` | Haiku | Codemap generation, README and docs sync |
 | `performance-optimizer` | Sonnet | Bundle analysis, React rendering, memory leaks |
 
-**Model routing**: Opus for deep reasoning (architecture, planning, security). Sonnet for implementation. Haiku for docs and simple tasks.
+### Model routing
+
+| Task type | Model | Reason |
+|-----------|-------|--------|
+| Exploration, file search | Haiku | Fast, cheap, sufficient |
+| Simple edits | Haiku | Single-file, clear instructions |
+| Multi-file implementation | Sonnet | Best balance for coding |
+| PR review | Sonnet | Understands context, catches nuance |
+| Complex architecture | Opus | Deep reasoning required |
+| Security analysis | Opus | Can't afford to miss vulnerabilities |
+| Debugging complex bugs | Opus | Needs to hold entire system in mind |
+| Writing docs | Haiku | Structure is simple |
+
+Escalate model tier only when the lower tier fails with a clear reasoning gap.
+
+### Automatic agent triggers (no prompt needed)
+
+| Change | Auto-trigger |
+|--------|-------------|
+| NestJS code changed | `nestjs-reviewer` |
+| FastAPI code changed | `fastapi-reviewer` |
+| Terraform files changed | `terraform-reviewer` |
+| K8s manifests changed | `k8s-reviewer` |
+| Database/migration changed | `database-reviewer` |
+| Frontend code changed | `frontend-reviewer` |
+| Before any infra deploy | `infra-security-reviewer` |
+| Architecture decisions | `aws-architect` |
+
+### Parallel agent execution
+
+Run independent reviews in parallel to save time:
+
+```
+# Good: launch all three simultaneously
+Agent 1: Security analysis of Terraform changes
+Agent 2: K8s manifest review
+Agent 3: Database migration review
+
+# Bad: sequential when there's no dependency
+Run Agent 1, wait, then Agent 2, wait, then Agent 3
+```
 
 ---
 
@@ -410,14 +667,18 @@ claude-review     # for reviewing a PR
 Skills load as passive knowledge — no invocation needed. Claude references them automatically based on what you're working on.
 
 ### Core workflow
+
 | Skill | What it covers |
 |---|---|
 | `git-workflow` | Branching strategies, conventional commits, merge vs rebase, conflict resolution |
 | `coding-standards` | Naming, immutability, error handling, async patterns, code smells |
 | `context-budget` | Token audit: MCPs (~500 tokens/tool), agent descriptions, how to reduce bloat |
-| `agentic-engineering` | Eval-first loops, model routing table, 15-minute unit decomposition |
+| `agentic-engineering` | Eval-first loops, model routing, 15-min decomposition, compaction guide, ADR format, AI-first signals |
+| `verification-loop` | 6-phase build/type/lint/test/security/diff pipeline with structured reporting |
+| `codebase-onboarding` | Architecture map, entry points, convention detection, starter CLAUDE.md |
 
 ### Architecture & design
+
 | Skill | What it covers |
 |---|---|
 | `api-design` | REST naming, status codes, pagination (offset vs cursor), rate limiting, versioning |
@@ -426,18 +687,43 @@ Skills load as passive knowledge — no invocation needed. Claude references the
 | `blueprint` | One-line objective → multi-session construction plan with dependency graph |
 
 ### Infra & DevOps
+
 | Skill | What it covers |
 |---|---|
 | `deployment-patterns` | Rolling/blue-green/canary, Docker multi-stage, GitHub Actions CI/CD, health checks |
-| `database-migrations` | Zero-downtime expand-contract, batch data migrations, Prisma/Drizzle/Kysely/Django/golang-migrate |
+| `database-migrations` | Zero-downtime expand-contract, batch data migrations, Prisma/Drizzle/Kysely/Alembic |
 | `docker-patterns` | Compose for dev, dev vs prod Dockerfile stages, container security, networking |
 
 ### Agentic & research
+
 | Skill | What it covers |
 |---|---|
 | `autonomous-loops` | Sequential pipeline, de-sloppify, continuous-claude PR loop, Ralphinho DAG |
-| `iterative-retrieval` | DISPATCH→EVALUATE→REFINE→LOOP for finding context without exceeding limits |
-| `deep-research` | Multi-source research with firecrawl/exa MCPs, citation, parallel subagents |
+| `search-first` | Research-before-coding workflow + progressive codebase retrieval (DISPATCH→EVALUATE→REFINE→LOOP) |
+| `deep-research` | Multi-source research with firecrawl/exa MCPs (incl. Exa tool reference), citation, parallel subagents |
+| `agent-harness-construction` | Action space design, tool definitions, observation formatting for higher agent completion rates |
+| `continuous-learning-v2` | Instinct-based learning via hooks — project-scoped vs global instincts, confidence scoring |
+| `content-hash-cache-pattern` | Cache expensive file processing with SHA-256 hashes — auto-invalidating, service layer separation |
+
+---
+
+## MCP Servers
+
+Configured in `mcp-configs/mcp-servers.json`. Merge into `~/.claude.json` under `"mcpServers"`.
+
+| Server | Purpose | Enable |
+|--------|---------|--------|
+| `github` | PRs, issues, repos, code search | Always |
+| `context7` | Live docs for NestJS, FastAPI, Terraform, K8s, SQLAlchemy, TypeORM, Prisma | Always |
+| `sequential-thinking` | Chain-of-thought for architecture and complex debugging | As needed |
+| `firecrawl` | Web research for AWS docs, Terraform registry, K8s docs, changelogs | As needed |
+| `memory` | Persistent memory for infra decisions and cross-session context | As needed |
+
+**Context window cost**: each MCP tool schema costs ~500 tokens in every request. A server with 30 tools costs more than all your skills files combined. Keep under 10 MCP servers enabled and under 80 total active tools.
+
+**Lean default**: enable `github` + `context7` always. Enable others for specific sessions, then disable.
+
+**CLI vs MCP**: for simple wrappers (GitHub PRs, Vercel deployments), prefer CLI commands (`gh pr`, `vercel deploy`) over MCP servers — saves 5k–15k tokens per session.
 
 ---
 
@@ -468,7 +754,7 @@ Skills load as passive knowledge — no invocation needed. Claude references the
 ### IaC security (via agents)
 
 - Terraform: IAM wildcards, secrets in `.tf`, unencrypted resources → CRITICAL
-- Kubernetes: root containers, cluster-admin RBAC, missing limits → CRITICAL
+- Kubernetes: root containers, cluster-admin RBAC, missing resource limits → CRITICAL
 - AWS: public S3 buckets, unencrypted storage, missing VPC Flow Logs → HIGH/CRITICAL
 
 ---
@@ -478,9 +764,30 @@ Skills load as passive knowledge — no invocation needed. Claude references the
 ### Context window management
 
 - Keep MCPs to ≤5 enabled per session (each tool adds ~500 tokens to every request)
-- Use `/compact` when exploration is done and you're in implementation mode
-- Use `context-budget` skill awareness: agent descriptions always load, rules load per session
-- Use `/switch-*` to focus rules rather than loading all stacks
+- Use `/compact` when exploration is done and you're entering implementation mode
+- Use `/switch-*` to focus rules rather than loading all stacks at once
+- Agent descriptions always load — even uninvoked agents consume context in every Task call
+- After adding any agent, skill, or MCP server, run the `context-budget` skill to verify headroom
+
+### Progressive retrieval for unfamiliar codebases
+
+When finding relevant files in a large codebase, use the DISPATCH→EVALUATE→REFINE→LOOP cycle (from the `search-first` skill):
+
+```
+Cycle 1: Broad search (generic keywords + common patterns)
+         → Score each file 0-1 for relevance
+         → Note missing context / gaps
+
+Cycle 2: Add terminology discovered in Cycle 1
+         → Exclude confirmed irrelevant paths
+         → Fill gaps
+
+Cycle 3: Target remaining gaps only
+
+Stop when: ≥3 high-relevance files (≥0.7 score) AND no critical gaps remain
+```
+
+If Cycle 1 returns nothing, the codebase uses different terminology — first cycle often reveals naming conventions.
 
 ### Parallelization
 
@@ -492,6 +799,13 @@ git worktree add ../project-feat-b -b feat/feature-b
 cd ../project-feat-a && claude-dev   # terminal 1
 cd ../project-feat-b && claude-dev   # terminal 2
 ```
+
+### Session strategy
+
+- Continue the same session for closely-coupled units (shared context is a feature)
+- Start a fresh session after major phase transitions (prevents prior assumptions leaking in)
+- Compact after milestone completion, not during active debugging
+- Save session with `/checkpoint <name>` before compacting or switching focus
 
 ### Pre-commit checklist
 
