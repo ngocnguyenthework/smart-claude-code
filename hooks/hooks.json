@@ -1,6 +1,18 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${HOME}/.claude/scripts/hooks/session-start.js\""
+          }
+        ],
+        "description": "Load previous session context at startup"
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -41,6 +53,37 @@
           }
         ],
         "description": "Reminder to use tmux for long-running dev commands"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${HOME}/.claude/scripts/hooks/commit-quality.js\"",
+            "timeout": 30000
+          }
+        ],
+        "description": "Pre-commit quality gate: secrets block, console.log warn, conventional commit check"
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${HOME}/.claude/scripts/hooks/config-protection.js\""
+          }
+        ],
+        "description": "Block writes to linter/formatter config files — fix the code, not the config"
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${HOME}/.claude/scripts/hooks/doc-file-warning.js\""
+          }
+        ],
+        "description": "Warn on ad-hoc doc filenames (NOTES, TODO, SCRATCH, etc.) outside structured dirs"
       }
     ],
     "PostToolUse": [
@@ -89,6 +132,18 @@
         "description": "Warn about console.log statements in JS/TS files"
       }
     ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${HOME}/.claude/scripts/hooks/pre-compact.js\""
+          }
+        ],
+        "description": "Save compaction marker to active session file before context is summarized"
+      }
+    ],
     "Stop": [
       {
         "matcher": "*",
@@ -100,6 +155,42 @@
           }
         ],
         "description": "Session end reminder to commit and test"
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${HOME}/.claude/scripts/hooks/session-end.js\"",
+            "async": true,
+            "timeout": 30000
+          }
+        ],
+        "description": "Persist session summary to ~/.claude/session-data/ after each response"
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${HOME}/.claude/scripts/hooks/cost-tracker.js\"",
+            "async": true,
+            "timeout": 10000
+          }
+        ],
+        "description": "Track token usage and estimated cost to ~/.claude/metrics/costs.jsonl"
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${HOME}/.claude/scripts/hooks/evaluate-session.js\"",
+            "async": true,
+            "timeout": 10000
+          }
+        ],
+        "description": "Signal pattern extraction for sessions with 10+ messages"
       }
     ]
   }
