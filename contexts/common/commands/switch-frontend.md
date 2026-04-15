@@ -25,7 +25,8 @@ Load the **frontend** context profile for React + Next.js + Tailwind CSS + shadc
 - Vitest + React Testing Library, Playwright
 
 ## Quick Commands Available
-- `/switch-backend` — Switch back to backend mode
+- `/switch-nestjs` — Switch to NestJS mode
+- `/switch-fastapi` — Switch to FastAPI mode
 - `/switch-devops` — Switch to infrastructure mode
 
 ## Diagnostic Quick-Reference

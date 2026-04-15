@@ -47,24 +47,58 @@ test('--context frontend --dry-run plans without writing', () => {
   }
 });
 
-test('--context backend copies agents and writes merged settings', () => {
+test('--context nestjs copies agents and writes merged settings', () => {
   const tmpDir = mkTmp();
   try {
-    const result = runInstall(['--context', 'backend', '--dir', tmpDir]);
+    const result = runInstall(['--context', 'nestjs', '--dir', tmpDir]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     const claudeDir = path.join(tmpDir, '.claude');
     assert.ok(fs.existsSync(path.join(claudeDir, 'settings.json')));
-    assert.ok(fs.existsSync(path.join(claudeDir, 'mcp-servers.json')));
+    assert.ok(fs.existsSync(path.join(tmpDir, '.mcp.json')), 'MCP config lands at project root (.mcp.json)');
+    assert.ok(!fs.existsSync(path.join(claudeDir, 'mcp-servers.json')), 'legacy mcp-servers.json must not be written');
     assert.ok(fs.existsSync(path.join(claudeDir, 'agents', 'planner.md')), 'common agent should land');
     assert.ok(
       fs.existsSync(path.join(claudeDir, 'agents', 'nestjs-reviewer.md')),
-      'backend agent should land',
+      'nestjs agent should land',
+    );
+    assert.ok(
+      !fs.existsSync(path.join(claudeDir, 'agents', 'fastapi-reviewer.md')),
+      'fastapi agents should NOT land when installing nestjs only',
     );
     assert.ok(
       !fs.existsSync(path.join(claudeDir, 'agents', 'terraform-reviewer.md')),
-      'devops agents should NOT land when installing backend',
+      'devops agents should NOT land when installing nestjs',
     );
-    assert.ok(fs.existsSync(path.join(tmpDir, 'scripts', 'hooks', 'run-with-flags.js')));
+    assert.ok(fs.existsSync(path.join(claudeDir, 'scripts', 'hooks', 'run-with-flags.js')));
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'scripts')), 'scripts must nest under .claude/, not project root');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--context fastapi copies FastAPI agent but not NestJS agent', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'fastapi', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const agents = path.join(tmpDir, '.claude', 'agents');
+    assert.ok(fs.existsSync(path.join(agents, 'fastapi-reviewer.md')));
+    assert.ok(fs.existsSync(path.join(agents, 'database-reviewer.md')), 'shared DB reviewer duplicated into fastapi');
+    assert.ok(!fs.existsSync(path.join(agents, 'nestjs-reviewer.md')), 'nestjs agent must not land in fastapi-only install');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--context fastapi,nestjs dedupes shared files without --force collisions', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'fastapi,nestjs', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const agents = path.join(tmpDir, '.claude', 'agents');
+    assert.ok(fs.existsSync(path.join(agents, 'fastapi-reviewer.md')));
+    assert.ok(fs.existsSync(path.join(agents, 'nestjs-reviewer.md')));
+    assert.ok(fs.existsSync(path.join(agents, 'database-reviewer.md')));
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -77,6 +111,7 @@ test('--context all installs every context', () => {
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     const agents = path.join(tmpDir, '.claude', 'agents');
     assert.ok(fs.existsSync(path.join(agents, 'nestjs-reviewer.md')));
+    assert.ok(fs.existsSync(path.join(agents, 'fastapi-reviewer.md')));
     assert.ok(fs.existsSync(path.join(agents, 'terraform-reviewer.md')));
     assert.ok(fs.existsSync(path.join(agents, 'frontend-reviewer.md')));
   } finally {
@@ -114,7 +149,7 @@ test('codex target routes rules/agents into references/', () => {
   try {
     const result = runInstall([
       '--context',
-      'backend',
+      'nestjs',
       '--target',
       'codex',
       '--dir',
@@ -134,6 +169,7 @@ test('--skip-scripts suppresses scripts/hooks copy', () => {
   try {
     const result = runInstall(['--context', 'common', '--dir', tmpDir, '--skip-scripts']);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.ok(!fs.existsSync(path.join(tmpDir, '.claude', 'scripts')));
     assert.ok(!fs.existsSync(path.join(tmpDir, 'scripts')));
     assert.ok(fs.existsSync(path.join(tmpDir, '.claude', 'settings.json')));
   } finally {

@@ -46,7 +46,7 @@ The baseline bundle. Installed automatically with every `--context` selection.
 | `/checkpoint` | Pausing — persist session state. |
 | `/learn` | Turn this session into a reusable skill. |
 | `/prompt-optimize` | Tighten an agent instruction or prompt file. |
-| `/switch-backend`, `/switch-devops`, `/switch-frontend` | Reframe the session into a stack context. |
+| `/switch-fastapi`, `/switch-nestjs`, `/switch-devops`, `/switch-frontend` | Reframe the session into a stack context. |
 
 ## Hooks (baseline)
 

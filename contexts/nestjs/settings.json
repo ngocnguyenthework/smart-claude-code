@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "description": "NestJS context — no additional hooks (JS/TS format + typecheck inherited from common).",
+  "hooks": {}
+}

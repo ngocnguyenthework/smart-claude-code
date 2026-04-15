@@ -2,7 +2,7 @@
 
 A context-isolated Claude Code toolkit for full-stack, DevOps, and agentic development. Covers backend (NestJS + FastAPI), DevOps (Terraform + Terragrunt + K8s + ArgoCD + Helm + Kustomize + AWS), frontend (React + Next.js + Tailwind + shadcn/ui), and general engineering workflows.
 
-> **Where things live**: the source of truth is `contexts/<name>/`. The installer copies `common + <selected>` into your target project's `.claude/` and `scripts/hooks/`. See [README.md](./README.md) for per-agent / per-command / per-hook scenarios.
+> **Where things live**: the source of truth is `contexts/<name>/`. The installer copies `common + <selected>` into your target project's `.claude/` (configs, agents, commands, `scripts/hooks/` runtime) and writes a `.mcp.json` at the project root. See [README.md](./README.md) for per-agent / per-command / per-hook scenarios.
 
 ---
 
@@ -42,11 +42,18 @@ cd ~/code/my-next-app
 claude
 ```
 
-### Backend repo
+### NestJS repo
 
 ```bash
 cd ~/code/my-api
-~/tools/smart-claude/install.sh --context backend
+~/tools/smart-claude/install.sh --context nestjs
+```
+
+### FastAPI repo
+
+```bash
+cd ~/code/my-api
+~/tools/smart-claude/install.sh --context fastapi
 ```
 
 ### DevOps repo (Terraform / Terragrunt / K8s / ArgoCD / Helm / Kustomize / AWS)
@@ -59,13 +66,15 @@ cd ~/code/infra
 ### Full-stack monorepo
 
 ```bash
-~/tools/smart-claude/install.sh --context backend,frontend
+~/tools/smart-claude/install.sh --context nestjs,frontend
+# or: --context fastapi,frontend
 ```
 
-### Platform repo (backend + infra)
+### Platform repo (API + infra)
 
 ```bash
-~/tools/smart-claude/install.sh --context backend,devops
+~/tools/smart-claude/install.sh --context nestjs,devops
+# or: --context fastapi,devops
 ```
 
 ### Everything
@@ -80,17 +89,17 @@ cd ~/code/infra
 |------|--------|
 | `--dry-run` | Print the plan — no files written. |
 | `--force` | Overwrite existing files. |
-| `--skip-scripts` | Don't copy `scripts/hooks/` or `scripts/lib/`. |
+| `--skip-scripts` | Don't copy `.claude/scripts/hooks/` or `.claude/scripts/lib/`. |
 | `--target cursor \| codex` | Install into `.cursor/` or `.codex/` instead of `.claude/`. |
 | `--dir <path>` | Install into a specific directory (default: cwd). |
 
 ### MCP Servers
 
-The installer writes a merged `.claude/mcp-servers.json` into your target project. Edit the placeholder credentials (`YOUR_GITHUB_PAT_HERE`, `YOUR_EXA_API_KEY_HERE`, etc.) before enabling the servers in Claude Code.
+The installer writes a merged **`.mcp.json`** at your target project's **root** (project scope — see [Claude Code MCP docs](https://code.claude.com/docs/en/mcp#project-scope)). Commit it to share servers with your team; each user is prompted to approve third-party servers on first use. Edit placeholder credentials (`YOUR_GITHUB_PAT_HERE`, `YOUR_EXA_API_KEY_HERE`, etc.) before enabling the servers in Claude Code.
 
 ### Hooks
 
-The installer writes a merged `.claude/settings.json` with hook registrations, plus copies the hook scripts into `scripts/hooks/` + `scripts/lib/`. Claude Code auto-loads the settings file on startup; hooks resolve their own paths via `${CLAUDE_PROJECT_DIR}`. To gate hooks at runtime use `SC_HOOK_PROFILE=minimal|standard|strict` or `SC_DISABLED_HOOKS=<id>,<id>`.
+The installer writes a merged `.claude/settings.json` with hook registrations, plus copies the hook scripts into `.claude/scripts/hooks/` + `.claude/scripts/lib/`. Claude Code auto-loads the settings file on startup; hooks resolve their own paths via `${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/...`. To gate hooks at runtime use `SC_HOOK_PROFILE=minimal|standard|strict` or `SC_DISABLED_HOOKS=<id>,<id>`.
 
 ---
 
@@ -112,13 +121,21 @@ smart-claude/
       contexts/     (dev.md / research.md / review.md)
       settings.json
       mcp-servers.json
-    backend/                         # NestJS + FastAPI + PostgreSQL
-      agents/       (nestjs-reviewer, fastapi-reviewer, database-reviewer)
-      commands/     (/nestjs-scaffold, /fastapi-scaffold, /db-migrate)
-      rules/        (nestjs/, fastapi/)
-      skills/       (5 backend skills)
-      contexts/backend.md
+    fastapi/                         # FastAPI + PostgreSQL
+      agents/       (fastapi-reviewer, database-reviewer)
+      commands/     (/fastapi-scaffold, /db-migrate)
+      rules/fastapi/
+      skills/       (api-connector-builder, api-design, backend-patterns, database-migrations)
+      contexts/fastapi.md
       settings.json (+ Python ruff auto-format)
+      mcp-servers.json (supabase, clickhouse)
+    nestjs/                          # NestJS + PostgreSQL
+      agents/       (nestjs-reviewer, database-reviewer)
+      commands/     (/nestjs-scaffold, /db-migrate)
+      rules/nestjs/
+      skills/       (api-connector-builder, api-design, backend-patterns, database-migrations, nestjs-patterns)
+      contexts/nestjs.md
+      settings.json (empty — JS/TS format/typecheck come from common)
       mcp-servers.json (supabase, clickhouse)
     devops/                          # Terraform + Terragrunt + K8s + ArgoCD + Helm + Kustomize + AWS
       agents/       (terraform-, terragrunt-, k8s-, argocd-, helm-, kustomize-reviewer + aws-architect + infra-security-reviewer)
@@ -160,10 +177,10 @@ my-next-app/
     skills/
     contexts/
     settings.json                    # merged common + frontend hooks
-    mcp-servers.json                 # merged common + frontend MCPs
-  scripts/
-    hooks/                           # portable hook scripts
-    lib/
+    scripts/
+      hooks/                         # portable hook scripts
+      lib/
+  .mcp.json                          # merged common + frontend MCPs (project-scope)
 ```
 
 ---
@@ -173,7 +190,8 @@ my-next-app/
 ### Method 1: Slash commands (within a session)
 
 ```
-/switch-backend    → NestJS + FastAPI + PostgreSQL rules
+/switch-fastapi    → FastAPI + PostgreSQL rules
+/switch-nestjs     → NestJS + PostgreSQL rules
 /switch-devops     → Terraform + AWS + Kubernetes rules
 /switch-frontend   → React + Next.js + Tailwind + shadcn/ui rules
 ```
@@ -182,7 +200,8 @@ my-next-app/
 
 | Alias | Context | Best for |
 |---|---|---|
-| `claude-be` | backend.md | API development, DB work |
+| `claude-nest` | nestjs.md | NestJS API / DB work |
+| `claude-py` | fastapi.md | FastAPI / DB work |
 | `claude-ops` | devops.md | Infra, Terraform, K8s |
 | `claude-fe` | frontend.md | UI components, Next.js |
 | `claude-dev` | dev.md | Fast coding, any stack |
@@ -317,7 +336,7 @@ Use the `blueprint` skill when work spans multiple sessions or team members.
 ### Backend feature (NestJS)
 
 ```
-1. /switch-backend  (or claude-be)
+1. /switch-nestjs  (or claude-nest)
 2. /plan
 3. /nestjs-scaffold users    → generate module structure
 4. Implement service logic
@@ -331,7 +350,7 @@ Use the `blueprint` skill when work spans multiple sessions or team members.
 ### Backend feature (FastAPI)
 
 ```
-1. /switch-backend
+1. /switch-fastapi  (or claude-py)
 2. /plan
 3. /fastapi-scaffold orders  → generate domain structure
 4. Implement service + schemas
@@ -565,7 +584,8 @@ For large features. Decomposes an RFC into a dependency DAG, runs each unit thro
 
 | Command | Purpose |
 |---------|---------|
-| `/switch-backend` | Enter NestJS + FastAPI + PostgreSQL mode |
+| `/switch-fastapi` | Enter FastAPI + PostgreSQL mode |
+| `/switch-nestjs` | Enter NestJS + PostgreSQL mode |
 | `/switch-devops` | Enter Terraform + AWS + K8s mode |
 | `/switch-frontend` | Enter React + Next.js + Tailwind mode |
 | `/nestjs-scaffold <name>` | Scaffold NestJS module |
@@ -707,7 +727,7 @@ Skills load as passive knowledge — no invocation needed. Claude references the
 
 ## MCP Servers
 
-Every context has its own `mcp-servers.json`. The installer merges them into `.claude/mcp-servers.json` in the target project. Edit the placeholder credentials (`YOUR_GITHUB_PAT_HERE`, etc.) before enabling servers.
+Every context has its own `mcp-servers.json`. The installer merges them into a single **`.mcp.json` at the target project root** (project scope — see [Claude Code MCP docs](https://code.claude.com/docs/en/mcp#project-scope)). Commit the file so teammates share the same server set; Claude Code prompts each user to approve third-party servers on first use. Edit placeholder credentials (`YOUR_GITHUB_PAT_HERE`, etc.) before enabling servers.
 
 | Server | Context | Purpose | Enable |
 |--------|---------|---------|--------|
@@ -717,7 +737,7 @@ Every context has its own `mcp-servers.json`. The installer merges them into `.c
 | `firecrawl`, `exa-web-search` | common | Web research | As needed |
 | `memory`, `filesystem`, `token-optimizer` | common | Reasoning / storage helpers | As needed |
 | `jira`, `confluence` | common | Atlassian ops | As needed |
-| `supabase`, `clickhouse` | backend | DB / analytics | As needed |
+| `supabase`, `clickhouse` | fastapi, nestjs | DB / analytics (shipped in both) | As needed |
 | `vercel`, `railway`, `cloudflare-docs` | devops | Deploy / docs | As needed |
 | `playwright`, `browserbase`, `browser-use`, `magic` | frontend | Browser automation / UI gen | As needed |
 

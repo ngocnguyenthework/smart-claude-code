@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-`smart-claude` is a context-isolated Claude Code toolkit. The source of truth lives under `contexts/<name>/` — each context (`common`, `backend`, `devops`, `frontend`) is a self-contained bundle of agents, commands, rules, skills, session framings, a `settings.json`, and an `mcp-servers.json`.
+`smart-claude` is a context-isolated Claude Code toolkit. The source of truth lives under `contexts/<name>/` — each context (`common`, `fastapi`, `nestjs`, `devops`, `frontend`) is a self-contained bundle of agents, commands, rules, skills, session framings, a `settings.json`, and an `mcp-servers.json`.
 
-Users run `./install.sh --context <names>` in their target project; the installer copies `common + <selected>` into the target's `.claude/` and `scripts/hooks/` + `scripts/lib/`.
+Users run `./install.sh --context <names>` in their target project; the installer copies `common + <selected>` into the target's `.claude/` (including `.claude/scripts/hooks/` + `.claude/scripts/lib/`) and writes a project-scope `.mcp.json` at the project root (per [Claude Code MCP docs](https://code.claude.com/docs/en/mcp#project-scope)).
 
 **Tech coverage**: NestJS · FastAPI · PostgreSQL · React · Next.js · Tailwind · shadcn/ui · Terraform · Terragrunt · Kubernetes · ArgoCD · Helm · Kustomize · AWS
 
@@ -31,7 +31,8 @@ Hook script paths use `${CLAUDE_PROJECT_DIR}` so they resolve correctly wherever
 ```
 contexts/
 ├── common/     always installed — session memory, safety, generalist agents
-├── backend/    NestJS + FastAPI + PostgreSQL
+├── fastapi/    FastAPI + PostgreSQL (agent, rules, scaffold + shared DB tooling)
+├── nestjs/     NestJS + PostgreSQL (agent, rules, scaffold + shared DB tooling)
 ├── devops/     Terraform + Terragrunt + K8s + ArgoCD + Helm + Kustomize + AWS
 └── frontend/   React + Next.js + Tailwind + shadcn/ui + E2E
 
@@ -39,8 +40,8 @@ Each contexts/<name>/ follows the same shape:
   agents/ commands/ rules/ skills/ contexts/ settings.json mcp-servers.json
 
 scripts/
-├── hooks/      Node hook scripts (copied into target's scripts/hooks/)
-├── lib/        shared hook helpers (hook-flags.js, etc.)
+├── hooks/      Node hook scripts (copied into target's .claude/scripts/hooks/)
+├── lib/        shared hook helpers (hook-flags.js, etc.) → target's .claude/scripts/lib/
 └── install.js  the installer
 tests/          node:test suite (install.test.js, contexts.test.js, lib/*.test.js)
 ```
@@ -74,17 +75,18 @@ Passive knowledge documents. Structured as: context → pattern → code example
 Session framings / system prompts loaded by the `/switch-*` commands. Self-contained — no frontmatter.
 
 ### Hooks (`contexts/<ctx>/settings.json`)
-Per-context hook registrations. The installer **merges** hook arrays per event across `common + <selected>` into the target's `.claude/settings.json`. Scripts live in `scripts/hooks/*.js` and are invoked with absolute paths via `${CLAUDE_PROJECT_DIR}/scripts/hooks/...`. The `run-with-flags.js` wrapper adds `SC_HOOK_PROFILE` and `SC_DISABLED_HOOKS` env-var gating. All scripts must `exit 0` on non-critical errors.
+Per-context hook registrations. The installer **merges** hook arrays per event across `common + <selected>` into the target's `.claude/settings.json`. Scripts land in the target's `.claude/scripts/hooks/*.js` (source: `scripts/hooks/*.js` in this repo) and are invoked with absolute paths via `${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/...`. The `run-with-flags.js` wrapper adds `SC_HOOK_PROFILE` and `SC_DISABLED_HOOKS` env-var gating. All scripts must `exit 0` on non-critical errors.
 
 ### MCP servers (`contexts/<ctx>/mcp-servers.json`)
-Per-context MCP registrations. The installer merges `mcpServers` keys across contexts into the target's `.claude/mcp-servers.json` via `Object.assign`.
+Per-context MCP registrations. The installer merges `mcpServers` keys across contexts and writes a single **project-scope `.mcp.json`** at the target project root (not inside `.claude/`). See [Claude Code MCP docs — project scope](https://code.claude.com/docs/en/mcp#project-scope). Last context wins on key collision (`Object.assign`).
 
 ## Architecture
 
 ### Install Merge Strategy
 - **Files** (agents/commands/rules/skills/contexts): union across `common + <selected>`; later contexts don't override earlier (collisions are skipped unless `--force`).
-- **`settings.json#/hooks`**: per event, arrays are **concatenated** in context order (`common` first).
-- **`mcp-servers.json#/mcpServers`**: shallow-merged via `Object.assign` — last context wins on key collision.
+- **`settings.json#/hooks`**: per event, arrays are **concatenated** in context order (`common` first) and written to `.claude/settings.json`.
+- **MCP `mcpServers`**: shallow-merged via `Object.assign` — last context wins on key collision. Written to `<root>/.mcp.json` (project scope).
+- **Hook scripts** (`scripts/hooks/`, `scripts/lib/`): copied into the target's `.claude/scripts/`. Internal `../lib/*` requires keep working because both dirs move together.
 
 ### Session Memory Pipeline (common)
 ```

@@ -8,7 +8,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/hooks/session-start.js\""
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/session-start.js\""
           }
         ],
         "description": "Load previous session context at startup"
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/hooks/pre-bash-git-push-reminder.js\"",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/pre-bash-git-push-reminder.js\"",
             "timeout": 5000
           }
         ],
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/hooks/commit-quality.js\"",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/commit-quality.js\"",
             "timeout": 30000
           }
         ],
@@ -62,7 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/hooks/config-protection.js\""
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/config-protection.js\""
           }
         ],
         "description": "Block writes to linter/formatter config files — fix the code, not the config"
@@ -72,7 +72,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/hooks/doc-file-warning.js\""
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/doc-file-warning.js\""
           }
         ],
         "description": "Warn on ad-hoc doc filenames (NOTES, TODO, SCRATCH, etc.) outside structured dirs"
@@ -82,7 +82,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/hooks/suggest-compact.js\"",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/suggest-compact.js\"",
             "timeout": 5000,
             "async": true
           }
@@ -96,7 +96,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/hooks/post-edit-format.js\"",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/post-edit-format.js\"",
             "timeout": 15000,
             "async": true
           }
@@ -108,7 +108,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/hooks/post-edit-typecheck.js\"",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/post-edit-typecheck.js\"",
             "timeout": 20000,
             "async": true
           }
@@ -133,7 +133,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/hooks/pre-compact.js\""
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/pre-compact.js\""
           }
         ],
         "description": "Save compaction marker to active session file before context is summarized"
@@ -156,7 +156,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/hooks/session-end.js\"",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/session-end.js\"",
             "async": true,
             "timeout": 30000
           }
@@ -168,7 +168,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/hooks/cost-tracker.js\"",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/cost-tracker.js\"",
             "async": true,
             "timeout": 10000
           }
@@ -180,7 +180,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/hooks/evaluate-session.js\"",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/evaluate-session.js\"",
             "async": true,
             "timeout": 10000
           }

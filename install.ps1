@@ -7,7 +7,8 @@
 #
 # Examples:
 #   .\install.ps1 --context frontend
-#   .\install.ps1 --context backend,devops --force
+#   .\install.ps1 --context nestjs,devops --force
+#   .\install.ps1 --context fastapi,frontend
 #   .\install.ps1 --context all --dir C:\code\app
 #   .\install.ps1 --context devops --target cursor --dry-run
 

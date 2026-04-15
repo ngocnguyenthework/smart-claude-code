@@ -3,8 +3,10 @@
  * smart-claude install script.
  *
  * Copies a context-specific bundle (common + <context>) from this repo into
- * a target project's .claude/ directory, plus the hook scripts into the
- * target's scripts/ directory.
+ * a target project's .claude/ directory. Everything (agents, commands, rules,
+ * skills, contexts, settings.json, hook scripts) lands under .claude/. The
+ * merged MCP server config is written to <root>/.mcp.json so Claude Code
+ * picks it up at project scope (https://code.claude.com/docs/en/mcp#project-scope).
  *
  * Usage:
  *   node scripts/install.js --context <name>[,<name>...] [flags]
@@ -12,19 +14,20 @@
  * Contexts:
  *   common     — baseline (always included): session memory, safety hooks,
  *                generalist agents, planner/reviewer commands
- *   backend    — NestJS + FastAPI + PostgreSQL
+ *   fastapi    — FastAPI + PostgreSQL
+ *   nestjs     — NestJS + PostgreSQL
  *   devops     — Terraform + Terragrunt + K8s + ArgoCD + Helm + Kustomize + AWS
  *   frontend   — React + Next.js + Tailwind + shadcn/ui + E2E
  *   all        — every context
  *
  * Flags:
  *   --context <names>   Required. Comma-separated contexts (common is always
- *                       added). Examples: "frontend", "backend,devops", "all"
+ *                       added). Examples: "frontend", "nestjs,devops", "all"
  *   --dir <path>        Optional. Target project root. Default: current directory.
  *   --target <harness>  Optional. claude (default) | cursor | codex.
  *   --dry-run           Print planned file operations without copying.
  *   --force             Overwrite existing files.
- *   --skip-scripts      Don't copy scripts/hooks/ and scripts/lib/.
+ *   --skip-scripts      Don't copy .claude/scripts/hooks/ and .claude/scripts/lib/.
  *   --help              Show this help.
  *
  * Examples:
@@ -32,14 +35,14 @@
  *   cd my-next-app
  *   /path/to/smart-claude/install.sh --context frontend
  *
- *   # Full-stack monorepo needing backend + frontend:
- *   /path/to/smart-claude/install.sh --context backend,frontend
+ *   # Full-stack monorepo needing NestJS + frontend:
+ *   /path/to/smart-claude/install.sh --context nestjs,frontend
  *
  *   # DevOps repo only:
  *   /path/to/smart-claude/install.sh --context devops
  *
  *   # Install into a specific location:
- *   /path/to/smart-claude/install.sh --context backend --dir ~/code/api
+ *   /path/to/smart-claude/install.sh --context fastapi --dir ~/code/api
  *
  *   # Preview without writing:
  *   /path/to/smart-claude/install.sh --context all --dry-run
@@ -52,7 +55,7 @@ const path = require('path');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const CONTEXTS_ROOT = path.join(REPO_ROOT, 'contexts');
-const VALID_CONTEXTS = ['common', 'backend', 'devops', 'frontend'];
+const VALID_CONTEXTS = ['common', 'fastapi', 'nestjs', 'devops', 'frontend'];
 
 function parseArgs(argv) {
   const args = {
@@ -264,10 +267,14 @@ function main() {
   const stem = dirStem(args.target);
   const claudeDir = path.join(args.dir, stem);
 
+  const scriptsDst = path.join(claudeDir, 'scripts');
+  const mcpDst = args.target === 'claude' ? path.join(args.dir, '.mcp.json') : null;
+
   console.log(`[install] Contexts:  ${contexts.join(' + ')}`);
   console.log(`[install] Target:    ${args.target} → ${args.dir}`);
   console.log(`[install] Config:    ${claudeDir}`);
-  console.log(`[install] Scripts:   ${args.skipScripts ? 'skipped' : path.join(args.dir, 'scripts')}`);
+  console.log(`[install] Scripts:   ${args.skipScripts ? 'skipped' : scriptsDst}`);
+  if (mcpDst) console.log(`[install] MCP:       ${mcpDst}`);
   console.log(`[install] Mode:      ${args.dryRun ? 'dry-run' : 'apply'}`);
   console.log('');
 
@@ -280,7 +287,7 @@ function main() {
     if (args.dryRun) console.log(`  [${item.ctx}/${item.kind}] → ${dst}`);
   }
 
-  // Only write settings.json / mcp-servers.json for Claude target.
+  // Only write settings.json / .mcp.json for Claude target.
   if (args.target === 'claude') {
     const settings = mergeSettings(contexts);
     const settingsDst = path.join(claudeDir, 'settings.json');
@@ -289,15 +296,14 @@ function main() {
     if (args.dryRun) console.log(`  [merged] settings.json → ${settingsDst}`);
 
     const mcp = mergeMcpServers(contexts);
-    const mcpDst = path.join(claudeDir, 'mcp-servers.json');
     const mRes = writeJson(mcpDst, mcp, args);
     counts[mRes] = (counts[mRes] || 0) + 1;
-    if (args.dryRun) console.log(`  [merged] mcp-servers.json → ${mcpDst}`);
+    if (args.dryRun) console.log(`  [merged] .mcp.json → ${mcpDst}`);
   }
 
   if (!args.skipScripts && args.target === 'claude') {
     for (const item of planScripts()) {
-      const dst = path.join(args.dir, item.relTarget);
+      const dst = path.join(claudeDir, item.relTarget);
       const res = copyFile(item.src, dst, args);
       counts[res] = (counts[res] || 0) + 1;
       if (args.dryRun) console.log(`  [scripts] → ${dst}`);
@@ -314,7 +320,8 @@ function main() {
     console.log('[install] Next step:');
     console.log(`  cd ${args.dir}`);
     console.log('  claude');
-    console.log('  # Claude Code auto-loads .claude/settings.json. Hooks use ${CLAUDE_PROJECT_DIR}/scripts/hooks/.');
+    console.log('  # Claude Code auto-loads .claude/settings.json and .mcp.json at project root.');
+    console.log('  # Hooks resolve via ${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/.');
   }
 }
 

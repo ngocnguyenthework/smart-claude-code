@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const CONTEXTS_ROOT = path.join(REPO_ROOT, 'contexts');
-const CONTEXT_NAMES = ['common', 'backend', 'devops', 'frontend'];
+const CONTEXT_NAMES = ['common', 'fastapi', 'nestjs', 'devops', 'frontend'];
 
 function loadJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -78,12 +78,26 @@ test('devops context ships GitOps/IaC stack coverage', () => {
   }
 });
 
-test('backend context ships NestJS + FastAPI rules and reviewers', () => {
-  const backend = path.join(CONTEXTS_ROOT, 'backend');
-  assert.ok(fs.existsSync(path.join(backend, 'rules', 'nestjs')));
-  assert.ok(fs.existsSync(path.join(backend, 'rules', 'fastapi')));
-  assert.ok(fs.existsSync(path.join(backend, 'agents', 'nestjs-reviewer.md')));
-  assert.ok(fs.existsSync(path.join(backend, 'agents', 'fastapi-reviewer.md')));
+test('fastapi context ships FastAPI rules, reviewer, and shared DB tooling', () => {
+  const fastapi = path.join(CONTEXTS_ROOT, 'fastapi');
+  assert.ok(fs.existsSync(path.join(fastapi, 'rules', 'fastapi')));
+  assert.ok(fs.existsSync(path.join(fastapi, 'agents', 'fastapi-reviewer.md')));
+  assert.ok(fs.existsSync(path.join(fastapi, 'agents', 'database-reviewer.md')));
+  assert.ok(fs.existsSync(path.join(fastapi, 'commands', 'fastapi-scaffold.md')));
+  assert.ok(fs.existsSync(path.join(fastapi, 'commands', 'db-migrate.md')));
+  assert.ok(!fs.existsSync(path.join(fastapi, 'agents', 'nestjs-reviewer.md')));
+  assert.ok(!fs.existsSync(path.join(fastapi, 'rules', 'nestjs')));
+});
+
+test('nestjs context ships NestJS rules, reviewer, and shared DB tooling', () => {
+  const nestjs = path.join(CONTEXTS_ROOT, 'nestjs');
+  assert.ok(fs.existsSync(path.join(nestjs, 'rules', 'nestjs')));
+  assert.ok(fs.existsSync(path.join(nestjs, 'agents', 'nestjs-reviewer.md')));
+  assert.ok(fs.existsSync(path.join(nestjs, 'agents', 'database-reviewer.md')));
+  assert.ok(fs.existsSync(path.join(nestjs, 'commands', 'nestjs-scaffold.md')));
+  assert.ok(fs.existsSync(path.join(nestjs, 'commands', 'db-migrate.md')));
+  assert.ok(!fs.existsSync(path.join(nestjs, 'agents', 'fastapi-reviewer.md')));
+  assert.ok(!fs.existsSync(path.join(nestjs, 'rules', 'fastapi')));
 });
 
 test('frontend context ships React/Next rules and reviewer', () => {

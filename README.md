@@ -1,9 +1,9 @@
 # smart-claude
 
-A **context-isolated** Claude Code toolkit. Clone once, then install only the config your repo needs — `frontend` into your Next.js app, `devops` into your Terraform repo, or `backend` into your NestJS/FastAPI service.
+A **context-isolated** Claude Code toolkit. Clone once, then install only the config your repo needs — `frontend` into your Next.js app, `devops` into your Terraform repo, `nestjs` into your NestJS service, or `fastapi` into your FastAPI service.
 
-- **Context-first** — agents, commands, rules, skills, hooks, and MCP servers are grouped by workflow (`common`, `backend`, `devops`, `frontend`). No more wading through Terraform reviewers in a React repo.
-- **One command to install** — `./install.sh --context frontend` copies `common + frontend` into the target repo's `.claude/` and `scripts/hooks/` directories. Run `claude` and you're done.
+- **Context-first** — agents, commands, rules, skills, hooks, and MCP servers are grouped by workflow (`common`, `fastapi`, `nestjs`, `devops`, `frontend`). No more wading through Terraform reviewers in a React repo.
+- **One command to install** — `./install.sh --context frontend` copies `common + frontend` into the target repo's `.claude/` (including `.claude/scripts/` for hook runtime) and writes a project-scope `.mcp.json` at the repo root. Run `claude` and you're done.
 - **Portable hooks** — every hook resolves paths via `${CLAUDE_PROJECT_DIR}`, so they fire from any cloned location without user-dir setup.
 - **Multi-harness** — install into Claude Code (`.claude/`), Cursor (`.cursor/rules/*.mdc`), or Codex (`references/`).
 
@@ -37,10 +37,10 @@ claude
 
 That's it. Claude Code auto-loads `.claude/settings.json`, every hook resolves its own path, and you get the frontend reviewer, E2E runner, docs-lookup, planner, and baseline safety guardrails.
 
-**Full-stack monorepo** (`backend + frontend`):
+**Full-stack monorepo** (NestJS + frontend):
 
 ```bash
-~/tools/smart-claude/install.sh --context backend,frontend
+~/tools/smart-claude/install.sh --context nestjs,frontend
 ```
 
 **DevOps / Terraform repo**:
@@ -61,14 +61,18 @@ That's it. Claude Code auto-loads `.claude/settings.json`, every hook resolves i
 
 | Context | Stacks | Agents | Commands | Rules | Skills |
 |---------|--------|-------:|---------:|------:|-------:|
-| `common` | baseline — always installed | 10 | 10 | 1 bundle | 27 |
-| `backend` | NestJS, FastAPI, PostgreSQL | 3 | 3 | 2 bundles | 5 |
+| `common` | baseline — always installed | 10 | 11 | 1 bundle | 27 |
+| `fastapi` | FastAPI, PostgreSQL | 2 | 2 | 1 bundle | 4 |
+| `nestjs` | NestJS, PostgreSQL | 2 | 2 | 1 bundle | 5 |
 | `devops` | Terraform, Terragrunt, K8s, ArgoCD, Helm, Kustomize, AWS | 8 | 8 | 7 bundles | 2 |
 | `frontend` | React, Next.js, Tailwind, shadcn/ui, E2E | 2 | 0 | 1 bundle | 4 |
 
+`fastapi` and `nestjs` each ship the shared `database-reviewer`, `/db-migrate`, and the `api-design` / `backend-patterns` / `database-migrations` / `api-connector-builder` skills — pick one without losing DB coverage, combine them for a polyglot backend and the installer dedupes collisions.
+
 See each context's own README for details:
 - [contexts/common/README.md](./contexts/common/README.md)
-- [contexts/backend/README.md](./contexts/backend/README.md)
+- [contexts/fastapi/README.md](./contexts/fastapi/README.md)
+- [contexts/nestjs/README.md](./contexts/nestjs/README.md)
 - [contexts/devops/README.md](./contexts/devops/README.md)
 - [contexts/frontend/README.md](./contexts/frontend/README.md)
 
@@ -89,10 +93,12 @@ Put it anywhere — `smart-claude` is just a source tree.
 | Your project type                    | Recommended `--context`       |
 |--------------------------------------|-------------------------------|
 | Next.js / React frontend             | `frontend`                    |
-| NestJS / FastAPI service             | `backend`                     |
+| NestJS service                       | `nestjs`                      |
+| FastAPI service                      | `fastapi`                     |
+| Polyglot backend (NestJS + FastAPI)  | `nestjs,fastapi`              |
 | Terraform / K8s / ArgoCD infra repo  | `devops`                      |
-| Full-stack monorepo                  | `backend,frontend`            |
-| Platform repo (infra + API)          | `backend,devops`              |
+| Full-stack monorepo                  | `nestjs,frontend` or `fastapi,frontend` |
+| Platform repo (infra + API)          | `nestjs,devops` or `fastapi,devops` |
 | Everything at once                   | `all`                         |
 
 `common` is always added automatically — it ships session memory, safety hooks, and generalist agents.
@@ -107,19 +113,19 @@ cd ~/code/my-app
 What happens:
 1. `.claude/agents/`, `.claude/commands/`, `.claude/rules/`, `.claude/skills/`, `.claude/contexts/` — markdown files for your chosen contexts.
 2. `.claude/settings.json` — merged hook registrations across `common` + selected contexts.
-3. `.claude/mcp-servers.json` — merged MCP server registrations.
-4. `scripts/hooks/` + `scripts/lib/` — the hook runtime that `.claude/settings.json` invokes.
+3. `.claude/scripts/hooks/` + `.claude/scripts/lib/` — the hook runtime that `.claude/settings.json` invokes via `${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/...`.
+4. `.mcp.json` at the **project root** — merged MCP server registrations at project scope (see [Claude Code MCP docs](https://code.claude.com/docs/en/mcp#project-scope)). Commit it to share servers with your team.
 
 ### 4. Install flags
 
 | Flag | Description |
 |------|-------------|
-| `--context <names>` | Required. Comma-separated. `frontend`, `backend,devops`, or `all`. |
+| `--context <names>` | Required. Comma-separated. `frontend`, `nestjs,devops`, `fastapi,frontend`, or `all`. |
 | `--dir <path>` | Target project root. Default: current directory. |
 | `--target <harness>` | `claude` (default), `cursor`, or `codex`. |
 | `--dry-run` | Print planned file operations without writing. |
 | `--force` | Overwrite existing files. Without it, existing files are skipped. |
-| `--skip-scripts` | Don't copy `scripts/hooks/` or `scripts/lib/`. |
+| `--skip-scripts` | Don't copy `.claude/scripts/hooks/` or `.claude/scripts/lib/`. |
 | `--help` | Show full help text. |
 
 ### 5. Verify
@@ -154,13 +160,19 @@ claude
 | **docs-lookup** | Sonnet | "How does library X do Y?" — uses the `context7` MCP to fetch live API docs. |
 | **chief-of-staff** | Opus | Multi-day project coordination — breaks down epics, tracks dependencies across agents. |
 
-### Backend (`--context backend`)
+### NestJS (`--context nestjs`)
 
 | Agent | Model | When to use |
 |-------|-------|-------------|
 | **nestjs-reviewer** | Sonnet | Review NestJS modules, DI wiring, decorators, guards, interceptors. |
-| **fastapi-reviewer** | Sonnet | Review FastAPI routers, Pydantic models, async patterns, dependency injection. |
 | **database-reviewer** | Sonnet | Schema, migration safety, query correctness, indexing. Works across Postgres/MySQL/etc. |
+
+### FastAPI (`--context fastapi`)
+
+| Agent | Model | When to use |
+|-------|-------|-------------|
+| **fastapi-reviewer** | Sonnet | Review FastAPI routers, Pydantic models, async patterns, dependency injection. |
+| **database-reviewer** | Sonnet | (Shared with `nestjs`) Schema, migration safety, query correctness, indexing. |
 
 ### DevOps (`--context devops`)
 
@@ -199,17 +211,24 @@ claude
 | `/checkpoint` | Save a session checkpoint (state, todo, next steps) — resume later. |
 | `/learn` | Extract a reusable pattern from the current session into a skill. |
 | `/prompt-optimize` | Tighten a prompt file or agent instruction for clarity and cost. |
-| `/switch-backend` | Load the backend context framing into the current session. |
+| `/switch-fastapi` | Load the FastAPI context framing into the current session. |
+| `/switch-nestjs` | Load the NestJS context framing. |
 | `/switch-devops` | Load the DevOps context framing. |
 | `/switch-frontend` | Load the frontend context framing. |
 
-### Backend
+### NestJS
 
 | Command | Scenario |
 |---------|----------|
 | `/nestjs-scaffold` | Generate a NestJS module (controller + service + tests) from a feature description. |
-| `/fastapi-scaffold` | Generate a FastAPI router (route + service + Pydantic models + tests). |
 | `/db-migrate` | Draft and review a migration (schema change + backfill + rollback plan). |
+
+### FastAPI
+
+| Command | Scenario |
+|---------|----------|
+| `/fastapi-scaffold` | Generate a FastAPI router (route + service + Pydantic models + tests). |
+| `/db-migrate` | (Shared with `nestjs`) Draft and review a migration. |
 
 ### DevOps
 
@@ -232,7 +251,7 @@ The `frontend` context currently ships no dedicated slash commands — `/plan`, 
 
 ## Hooks Catalogue
 
-> Hooks live in `scripts/hooks/` and are registered in `.claude/settings.json`. They run on events Claude Code emits: `SessionStart`, `PreToolUse`, `PostToolUse`, `PreCompact`, `Stop`.
+> Hooks live in `.claude/scripts/hooks/` (source: this repo's `scripts/hooks/`) and are registered in `.claude/settings.json`. They run on events Claude Code emits: `SessionStart`, `PreToolUse`, `PostToolUse`, `PreCompact`, `Stop`.
 
 ### Common — always installed
 
@@ -254,11 +273,15 @@ The `frontend` context currently ships no dedicated slash commands — `/plan`, 
 | `cost-tracker.js` | `Stop` (async) | Appends token usage + $ estimate to `~/.claude/metrics/costs.jsonl`. | You know what a refactor really cost you. |
 | `evaluate-session.js` | `Stop` (async) | Flags sessions with 10+ messages for skill extraction via `/learn`. | Turns repeat work into reusable skills. |
 
-### Backend — additions
+### FastAPI — additions
 
 | Hook | Event | What it does |
 |------|-------|-------------|
 | `(inline) ruff format + check --fix` | `PostToolUse` (Edit/Write) on `.py` | Runs `ruff format` then `ruff check --fix` on edited Python files. |
+
+### NestJS — additions
+
+No context-specific hooks — JS/TS `post-edit-format` (Biome/Prettier) and `post-edit-typecheck` (`tsc --noEmit`) come from `common`.
 
 ### DevOps — additions
 
@@ -275,7 +298,7 @@ Frontend currently adds no hooks beyond the common set (Biome/Prettier via `post
 
 ### Hook runtime flags
 
-Hooks route through `scripts/hooks/run-with-flags.js`, which reads two env vars so you can dial the stack on a per-session basis:
+Hooks route through `.claude/scripts/hooks/run-with-flags.js`, which reads two env vars so you can dial the stack on a per-session basis:
 
 ```bash
 # Disable a specific hook this session:
@@ -289,7 +312,7 @@ SC_HOOK_PROFILE=minimal claude
 
 ## MCP Servers
 
-`mcp-servers.json` registrations merge across contexts. The example servers ship with placeholder credentials — fill them in `.env` or the MCP config before use.
+Each context ships a `mcp-servers.json`. The installer merges all selected contexts into a single **`.mcp.json`** at the target project root (project scope — see [Claude Code MCP docs](https://code.claude.com/docs/en/mcp#project-scope)). Commit `.mcp.json` to share servers with teammates; Claude Code prompts each user to approve third-party servers on first use. Example servers ship with placeholder credentials — fill them in (via `${VAR}` references or `.env`) before enabling.
 
 | Server | Context | Purpose |
 |--------|---------|---------|
@@ -299,7 +322,7 @@ SC_HOOK_PROFILE=minimal claude
 | `sequential-thinking`, `memory`, `filesystem` | common | Reasoning helpers |
 | `jira`, `confluence` | common | Atlassian ops |
 | `token-optimizer` | common | Prompt-size helpers |
-| `supabase`, `clickhouse` | backend | DB / analytics |
+| `supabase`, `clickhouse` | fastapi, nestjs | DB / analytics (shipped in both) |
 | `vercel`, `railway`, `cloudflare-docs` | devops | Deploy / docs |
 | `playwright`, `browserbase`, `browser-use`, `magic` | frontend | Browser automation / UI gen |
 
@@ -316,7 +339,7 @@ SC_HOOK_PROFILE=minimal claude
 **Codex** — rules / agents / contexts land under `.codex/references/`:
 
 ```bash
-./install.sh --context backend --target codex --dir ~/code/api
+./install.sh --context nestjs --target codex --dir ~/code/api
 ```
 
 Other harnesses aren't targeted; the Claude Code install is the canonical path.
@@ -355,7 +378,8 @@ smart-claude/
 │   │   ├── contexts/        dev.md / research.md / review.md framings
 │   │   ├── settings.json    shared hook registrations
 │   │   └── mcp-servers.json shared MCP servers
-│   ├── backend/             NestJS + FastAPI + PostgreSQL
+│   ├── fastapi/             FastAPI + PostgreSQL
+│   ├── nestjs/              NestJS + PostgreSQL
 │   ├── devops/              Terraform + Terragrunt + K8s + ArgoCD + Helm + Kustomize + AWS
 │   └── frontend/            React + Next + Tailwind + shadcn/ui + E2E
 ├── scripts/
@@ -388,9 +412,9 @@ Add `--force`:
 ```
 
 **"I installed the wrong context — how do I swap it?"**
-Remove `.claude/` in the target and re-run with the right `--context`:
+Remove `.claude/` and `.mcp.json` in the target, then re-run with the right `--context`:
 
 ```bash
-rm -rf .claude
+rm -rf .claude .mcp.json
 ./install.sh --context devops
 ```

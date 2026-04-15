@@ -6,7 +6,8 @@
 #
 # Contexts:
 #   common     baseline (always included)
-#   backend    NestJS + FastAPI + PostgreSQL
+#   fastapi    FastAPI + PostgreSQL
+#   nestjs     NestJS + PostgreSQL
 #   devops     Terraform + Terragrunt + K8s + ArgoCD + Helm + Kustomize + AWS
 #   frontend   React + Next.js + Tailwind + shadcn/ui + E2E
 #   all        every context
@@ -17,12 +18,13 @@
 #   --dir <path>       Optional. Target project root (default: cwd).
 #   --dry-run          Print planned operations, don't copy.
 #   --force            Overwrite existing files.
-#   --skip-scripts     Skip copying scripts/hooks and scripts/lib.
+#   --skip-scripts     Skip copying .claude/scripts/hooks and .claude/scripts/lib.
 #   --help             Show full help.
 #
 # Examples:
 #   ./install.sh --context frontend                 # install into current dir
-#   ./install.sh --context backend,devops --force   # full-stack + IaC
+#   ./install.sh --context nestjs,devops --force    # NestJS API + IaC
+#   ./install.sh --context fastapi,frontend         # FastAPI + Next.js full-stack
 #   ./install.sh --context all --dir ~/code/app
 #   ./install.sh --context devops --target cursor --dry-run
 
