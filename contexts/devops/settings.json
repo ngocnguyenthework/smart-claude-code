@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "description": "DevOps-specific hooks — block destructive Terraform and Kubernetes operations without review.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'INPUT=$(cat); CMD=$(echo \"$INPUT\" | node -pe \"JSON.parse(require(\\\"fs\\\").readFileSync(0,\\\"utf8\\\")).tool_input.command || \\\"\\\"\" 2>/dev/null || echo \"\"); if echo \"$CMD\" | grep -qE \"terraform\\s+apply\" && ! echo \"$CMD\" | grep -qE \"terraform\\s+plan\"; then echo \"BLOCK: Run /tf-plan-review first. Never apply without reviewing the plan.\" >&2; exit 2; fi'"
+          }
+        ],
+        "description": "Block terraform apply without prior plan review"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'INPUT=$(cat); CMD=$(echo \"$INPUT\" | node -pe \"JSON.parse(require(\\\"fs\\\").readFileSync(0,\\\"utf8\\\")).tool_input.command || \\\"\\\"\" 2>/dev/null || echo \"\"); if echo \"$CMD\" | grep -qE \"kubectl\\s+(apply|delete).*--context.*(prod|production)\"; then echo \"BLOCK: Production kubectl operation detected. Switch to a non-prod context or confirm explicitly.\" >&2; exit 2; fi'"
+          }
+        ],
+        "description": "Block kubectl apply/delete targeting production context"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'INPUT=$(cat); CMD=$(echo \"$INPUT\" | node -pe \"JSON.parse(require(\\\"fs\\\").readFileSync(0,\\\"utf8\\\")).tool_input.command || \\\"\\\"\" 2>/dev/null || echo \"\"); if echo \"$CMD\" | grep -qE \"terragrunt\\s+(run-all\\s+)?apply\" && ! echo \"$CMD\" | grep -qE \"terragrunt.*plan\"; then echo \"BLOCK: Run /terragrunt-plan first. Never run-all apply without reviewing the full plan.\" >&2; exit 2; fi'"
+          }
+        ],
+        "description": "Block terragrunt apply/run-all apply without prior plan review"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'INPUT=$(cat); CMD=$(echo \"$INPUT\" | node -pe \"JSON.parse(require(\\\"fs\\\").readFileSync(0,\\\"utf8\\\")).tool_input.command || \\\"\\\"\" 2>/dev/null || echo \"\"); if echo \"$CMD\" | grep -qE \"argocd\\s+app\\s+(sync|delete).*--project\\s+prod\"; then echo \"[Hook] ArgoCD prod sync/delete detected — confirm rollback is ready.\" >&2; fi'"
+          }
+        ],
+        "description": "Warn on ArgoCD sync/delete against production AppProject"
+      }
+    ]
+  }
+}

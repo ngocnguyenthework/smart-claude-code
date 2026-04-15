@@ -1,0 +1,13 @@
+{
+  "name": "smart-claude",
+  "version": "0.2.0",
+  "description": "Portable Claude Code plugin for full-stack and DevOps development (NestJS, FastAPI, Terraform, Terragrunt, Kubernetes, ArgoCD, Helm, Kustomize, React, Next.js).",
+  "private": true,
+  "scripts": {
+    "test": "node tests/run-all.js",
+    "install:dry": "node scripts/install.js --context all --dry-run"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

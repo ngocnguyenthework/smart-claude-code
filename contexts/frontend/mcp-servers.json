@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp", "--browser", "chrome"],
+      "description": "Browser automation and testing via Playwright — pairs with e2e-runner agent"
+    },
+    "browserbase": {
+      "command": "npx",
+      "args": ["-y", "@browserbasehq/mcp-server-browserbase"],
+      "env": { "BROWSERBASE_API_KEY": "YOUR_BROWSERBASE_KEY_HERE" },
+      "description": "Cloud browser sessions via Browserbase"
+    },
+    "browser-use": {
+      "type": "http",
+      "url": "https://api.browser-use.com/mcp",
+      "headers": { "x-browser-use-api-key": "YOUR_BROWSER_USE_KEY_HERE" },
+      "description": "AI browser agent for web tasks"
+    },
+    "magic": {
+      "command": "npx",
+      "args": ["-y", "@magicuidesign/mcp@latest"],
+      "description": "Magic UI component generation"
+    }
+  }
+}

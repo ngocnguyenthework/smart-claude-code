@@ -1,6 +1,8 @@
-# SmartClaude Workflow Guide
+# smart-claude Workflow Guide
 
-A Claude Code configuration for full-stack, DevOps, and agentic development. Covers backend (NestJS + FastAPI), DevOps (Terraform + AWS + K8s), frontend (React + Next.js + Tailwind + shadcn/ui), and general engineering workflows.
+A context-isolated Claude Code toolkit for full-stack, DevOps, and agentic development. Covers backend (NestJS + FastAPI), DevOps (Terraform + Terragrunt + K8s + ArgoCD + Helm + Kustomize + AWS), frontend (React + Next.js + Tailwind + shadcn/ui), and general engineering workflows.
+
+> **Where things live**: the source of truth is `contexts/<name>/`. The installer copies `common + <selected>` into your target project's `.claude/` and `scripts/hooks/`. See [README.md](./README.md) for per-agent / per-command / per-hook scenarios.
 
 ---
 
@@ -24,148 +26,144 @@ A Claude Code configuration for full-stack, DevOps, and agentic development. Cov
 
 ## Installation
 
-### Full install (user-level, all projects)
+Clone this repo once and keep it around as a source tree:
 
 ```bash
-SMARTCLAUDE=/path/to/smartclaude
-
-# Core config
-cp -r $SMARTCLAUDE/agents ~/.claude/
-cp -r $SMARTCLAUDE/commands ~/.claude/
-cp -r $SMARTCLAUDE/rules ~/.claude/
-cp -r $SMARTCLAUDE/skills ~/.claude/
-cp -r $SMARTCLAUDE/contexts ~/.claude/
-cp -r $SMARTCLAUDE/scripts ~/.claude/
-
-# Merge hooks.json into ~/.claude/settings.json manually
-cat $SMARTCLAUDE/hooks/hooks.json
+git clone <repo-url> ~/tools/smart-claude
 ```
 
-### Per-project install
+Then install the config you need into each target project. `common` is always included; the rest is opt-in per context.
+
+### Frontend repo
 
 ```bash
-mkdir -p .claude/{agents,rules,commands,skills}
-
-cp /path/to/smartclaude/agents/*.md .claude/agents/
-cp -r /path/to/smartclaude/rules/common .claude/rules/
-cp -r /path/to/smartclaude/rules/nestjs .claude/rules/    # your stack
-cp /path/to/smartclaude/commands/*.md ~/.claude/commands/ # user-level for global access
-cp -r /path/to/smartclaude/skills/* ~/.claude/skills/
+cd ~/code/my-next-app
+~/tools/smart-claude/install.sh --context frontend
+claude
 ```
 
-### Shell aliases
+### Backend repo
 
 ```bash
-# Add to ~/.zshrc or ~/.bashrc
-alias claude-be='claude --system-prompt "$(cat ~/.claude/contexts/backend.md)"'
-alias claude-ops='claude --system-prompt "$(cat ~/.claude/contexts/devops.md)"'
-alias claude-fe='claude --system-prompt "$(cat ~/.claude/contexts/frontend.md)"'
-alias claude-dev='claude --system-prompt "$(cat ~/.claude/contexts/dev.md)"'
-alias claude-research='claude --system-prompt "$(cat ~/.claude/contexts/research.md)"'
-alias claude-review='claude --system-prompt "$(cat ~/.claude/contexts/review.md)"'
+cd ~/code/my-api
+~/tools/smart-claude/install.sh --context backend
 ```
+
+### DevOps repo (Terraform / Terragrunt / K8s / ArgoCD / Helm / Kustomize / AWS)
+
+```bash
+cd ~/code/infra
+~/tools/smart-claude/install.sh --context devops
+```
+
+### Full-stack monorepo
+
+```bash
+~/tools/smart-claude/install.sh --context backend,frontend
+```
+
+### Platform repo (backend + infra)
+
+```bash
+~/tools/smart-claude/install.sh --context backend,devops
+```
+
+### Everything
+
+```bash
+~/tools/smart-claude/install.sh --context all
+```
+
+### Useful flags
+
+| Flag | Effect |
+|------|--------|
+| `--dry-run` | Print the plan — no files written. |
+| `--force` | Overwrite existing files. |
+| `--skip-scripts` | Don't copy `scripts/hooks/` or `scripts/lib/`. |
+| `--target cursor \| codex` | Install into `.cursor/` or `.codex/` instead of `.claude/`. |
+| `--dir <path>` | Install into a specific directory (default: cwd). |
 
 ### MCP Servers
 
-Merge `mcp-configs/mcp-servers.json` into your `~/.claude.json` under `"mcpServers"`. Replace `YOUR_GITHUB_PAT_HERE` and `YOUR_FIRECRAWL_KEY_HERE` with actual values.
+The installer writes a merged `.claude/mcp-servers.json` into your target project. Edit the placeholder credentials (`YOUR_GITHUB_PAT_HERE`, `YOUR_EXA_API_KEY_HERE`, etc.) before enabling the servers in Claude Code.
 
 ### Hooks
 
-After installing scripts to `~/.claude/scripts/hooks/`, merge `hooks/hooks.json` into your `~/.claude/settings.json`. The hook scripts reference `${HOME}/.claude/scripts/hooks/` so the path resolves automatically.
+The installer writes a merged `.claude/settings.json` with hook registrations, plus copies the hook scripts into `scripts/hooks/` + `scripts/lib/`. Claude Code auto-loads the settings file on startup; hooks resolve their own paths via `${CLAUDE_PROJECT_DIR}`. To gate hooks at runtime use `SC_HOOK_PROFILE=minimal|standard|strict` or `SC_DISABLED_HOOKS=<id>,<id>`.
 
 ---
 
 ## Directory Structure
 
+Source layout (`smart-claude/`):
+
 ```
-smartclaude/
-  WORKFLOW_GUIDE.md
+smart-claude/
   README.md
-  agents/                       # 14 agents total
-    # Stack reviewers (8)
-    nestjs-reviewer.md
-    fastapi-reviewer.md
-    terraform-reviewer.md
-    k8s-reviewer.md
-    aws-architect.md
-    database-reviewer.md
-    infra-security-reviewer.md
-    frontend-reviewer.md
-    # General-purpose (6)
-    planner.md
-    architect.md
-    refactor-cleaner.md
-    build-error-resolver.md
-    doc-updater.md
-    performance-optimizer.md
-  commands/                     # 17 commands total
-    # Stack (10)
-    nestjs-scaffold.md
-    fastapi-scaffold.md
-    tf-plan-review.md
-    k8s-audit.md
-    db-migrate.md
-    aws-cost-check.md
-    infra-security-scan.md
-    switch-backend.md
-    switch-devops.md
-    switch-frontend.md
-    # Workflow (7)
-    plan.md
-    code-review.md
-    build-fix.md
-    refactor-clean.md
-    learn.md
-    prompt-optimize.md
-    checkpoint.md
-  skills/                       # 19 skills (each in its own folder/SKILL.md)
-    agent-harness-construction/
-    agentic-engineering/        # + AI-first signals, compaction guide, ADR format
-    api-design/
-    autonomous-loops/
-    backend-patterns/
-    blueprint/
-    codebase-onboarding/
-    coding-standards/
-    content-hash-cache-pattern/
-    context-budget/
-    continuous-learning-v2/
-    database-migrations/
-    deep-research/              # + Exa MCP tool reference
-    deployment-patterns/
-    docker-patterns/
-    frontend-patterns/
-    git-workflow/
-    search-first/               # + progressive codebase retrieval
-    verification-loop/
-  rules/
-    common/                     # 10 universal rules
-    nestjs/
-    fastapi/
-    terraform/
-    kubernetes/
-    aws/
-    frontend/
-  contexts/                     # 6 system prompt profiles
-    backend.md                  # NestJS + FastAPI + PostgreSQL
-    devops.md                   # Terraform + AWS + K8s
-    frontend.md                 # React + Next.js + Tailwind + shadcn/ui
-    dev.md                      # Active coding — ship fast, atomic commits
-    research.md                 # Exploration — read first, code second
-    review.md                   # PR review — severity-ordered, security-first
-  hooks/
-    hooks.json
-  scripts/hooks/                # 8 standalone Node.js hook scripts
-    session-start.js
-    session-end.js
-    pre-compact.js
-    cost-tracker.js
-    evaluate-session.js
-    commit-quality.js
-    config-protection.js
-    doc-file-warning.js
-  mcp-configs/
-    mcp-servers.json
+  WORKFLOW_GUIDE.md
+  CLAUDE.md
+  contexts/
+    common/                          # always installed
+      agents/       (10 generalist agents)
+      commands/     (10 workflow commands)
+      rules/common/ (baseline cross-cutting rules)
+      skills/       (27 shared skills)
+      contexts/     (dev.md / research.md / review.md)
+      settings.json
+      mcp-servers.json
+    backend/                         # NestJS + FastAPI + PostgreSQL
+      agents/       (nestjs-reviewer, fastapi-reviewer, database-reviewer)
+      commands/     (/nestjs-scaffold, /fastapi-scaffold, /db-migrate)
+      rules/        (nestjs/, fastapi/)
+      skills/       (5 backend skills)
+      contexts/backend.md
+      settings.json (+ Python ruff auto-format)
+      mcp-servers.json (supabase, clickhouse)
+    devops/                          # Terraform + Terragrunt + K8s + ArgoCD + Helm + Kustomize + AWS
+      agents/       (terraform-, terragrunt-, k8s-, argocd-, helm-, kustomize-reviewer + aws-architect + infra-security-reviewer)
+      commands/     (/tf-plan-review, /terragrunt-plan, /argocd-audit, /helm-lint, /kustomize-diff, /k8s-audit, /aws-cost-check, /infra-security-scan)
+      rules/        (terraform/, terragrunt/, kubernetes/, argocd/, helm/, kustomize/, aws/)
+      skills/       (2 DevOps skills)
+      contexts/devops.md
+      settings.json (+ terraform apply / kubectl prod / terragrunt run-all guards)
+      mcp-servers.json (vercel, railway, cloudflare-docs)
+    frontend/                        # React + Next.js + Tailwind + shadcn/ui + E2E
+      agents/       (frontend-reviewer, e2e-runner)
+      commands/     (none — inherits /plan + /code-review from common)
+      rules/frontend/
+      skills/       (4 frontend skills)
+      contexts/frontend.md
+      settings.json
+      mcp-servers.json (playwright, browserbase, browser-use, magic)
+  scripts/
+    install.js                       # the installer
+    hooks/                           # hook scripts (copied into target projects)
+    lib/                             # shared hook helpers (hook-flags.js, utils.js)
+  tests/                             # node:test suite
+    install.test.js
+    contexts.test.js
+    lib/*.test.js
+    run-all.js
+  install.sh / install.ps1           # thin wrappers around scripts/install.js
+  package.json                       # no runtime deps — engines: node >= 18
+```
+
+Generated layout (in a **target** project after `install.sh --context frontend`):
+
+```
+my-next-app/
+  .claude/
+    agents/
+    commands/
+    rules/
+    skills/
+    contexts/
+    settings.json                    # merged common + frontend hooks
+    mcp-servers.json                 # merged common + frontend MCPs
+  scripts/
+    hooks/                           # portable hook scripts
+    lib/
 ```
 
 ---
@@ -709,15 +707,19 @@ Skills load as passive knowledge — no invocation needed. Claude references the
 
 ## MCP Servers
 
-Configured in `mcp-configs/mcp-servers.json`. Merge into `~/.claude.json` under `"mcpServers"`.
+Every context has its own `mcp-servers.json`. The installer merges them into `.claude/mcp-servers.json` in the target project. Edit the placeholder credentials (`YOUR_GITHUB_PAT_HERE`, etc.) before enabling servers.
 
-| Server | Purpose | Enable |
-|--------|---------|--------|
-| `github` | PRs, issues, repos, code search | Always |
-| `context7` | Live docs for NestJS, FastAPI, Terraform, K8s, SQLAlchemy, TypeORM, Prisma | Always |
-| `sequential-thinking` | Chain-of-thought for architecture and complex debugging | As needed |
-| `firecrawl` | Web research for AWS docs, Terraform registry, K8s docs, changelogs | As needed |
-| `memory` | Persistent memory for infra decisions and cross-session context | As needed |
+| Server | Context | Purpose | Enable |
+|--------|---------|---------|--------|
+| `github` | common | PRs, issues, repos, code search | Always |
+| `context7` | common | Live docs for NestJS, FastAPI, Terraform, K8s, SQLAlchemy, TypeORM, Prisma | Always |
+| `sequential-thinking` | common | Chain-of-thought for architecture and complex debugging | As needed |
+| `firecrawl`, `exa-web-search` | common | Web research | As needed |
+| `memory`, `filesystem`, `token-optimizer` | common | Reasoning / storage helpers | As needed |
+| `jira`, `confluence` | common | Atlassian ops | As needed |
+| `supabase`, `clickhouse` | backend | DB / analytics | As needed |
+| `vercel`, `railway`, `cloudflare-docs` | devops | Deploy / docs | As needed |
+| `playwright`, `browserbase`, `browser-use`, `magic` | frontend | Browser automation / UI gen | As needed |
 
 **Context window cost**: each MCP tool schema costs ~500 tokens in every request. A server with 30 tools costs more than all your skills files combined. Keep under 10 MCP servers enabled and under 80 total active tools.
 

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "description": "Backend-specific hooks — Python auto-format via ruff.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'INPUT=$(cat); FILE=$(echo \"$INPUT\" | node -pe \"JSON.parse(require(\\\"fs\\\").readFileSync(0,\\\"utf8\\\")).tool_input.file_path || \\\"\\\"\" 2>/dev/null || echo \"\"); if echo \"$FILE\" | grep -qE \"\\.py$\"; then if command -v ruff >/dev/null 2>&1; then ruff format \"$FILE\" 2>/dev/null; ruff check --fix \"$FILE\" 2>/dev/null; fi; fi'",
+            "timeout": 15000
+          }
+        ],
+        "description": "Auto-format Python files with ruff after edits"
+      }
+    ]
+  }
+}
