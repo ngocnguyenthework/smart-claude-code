@@ -4,16 +4,15 @@
  *
  * Counts user messages in the transcript. If the session has ≥10 messages,
  * logs a signal to stderr prompting Claude to extract reusable patterns
- * to ~/.claude/skills/learned/ via the /learn command.
+ * to <project>/.claude/.storage/skills/learned/ via the /learn command.
  */
 
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 
-const LEARNED_DIR = path.join(os.homedir(), '.claude', 'skills', 'learned');
+const LEARNED_DIR = path.join(process.env.CLAUDE_PROJECT_DIR || process.cwd(), '.claude', '.storage', 'skills', 'learned');
 const MIN_MESSAGES = 10;
 
 function log(msg) {

@@ -10,9 +10,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 
-const SESSIONS_DIR = path.join(os.homedir(), '.claude', 'session-data');
+const SESSIONS_DIR = path.join(process.env.CLAUDE_PROJECT_DIR || process.cwd(), '.claude', '.storage', 'session-data');
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) {

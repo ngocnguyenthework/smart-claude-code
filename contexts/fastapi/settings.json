@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "description": "FastAPI context — Python auto-format (ruff) + type-check (mypy/pyright/ty, auto-detected) on .py edits.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/post-edit-format-python.js\"",
+            "timeout": 15000,
+            "async": true
+          }
+        ],
+        "description": "Auto-format Python files with ruff (format + check --fix) after edits"
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/post-edit-typecheck-python.js\"",
+            "timeout": 30000,
+            "async": true
+          }
+        ],
+        "description": "Type-check edited .py files with the project's configured checker (mypy/pyright/ty). No-op if none configured."
+      }
+    ]
+  }
+}

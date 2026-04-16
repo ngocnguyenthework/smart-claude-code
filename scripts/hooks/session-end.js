@@ -3,17 +3,16 @@
  * Stop Hook (Session End) - Persist session summary for cross-session continuity
  *
  * Reads transcript_path from stdin JSON. Extracts user messages, tools used,
- * and files modified. Creates/updates ~/.claude/session-data/YYYY-MM-DD-<shortid>-session.tmp
+ * and files modified. Creates/updates <project>/.claude/.storage/session-data/YYYY-MM-DD-<shortid>-session.tmp
  */
 
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const { execSync } = require('child_process');
 
-const SESSIONS_DIR = path.join(os.homedir(), '.claude', 'session-data');
+const SESSIONS_DIR = path.join(process.env.CLAUDE_PROJECT_DIR || process.cwd(), '.claude', '.storage', 'session-data');
 const SUMMARY_START = '<!-- ECC:SUMMARY:START -->';
 const SUMMARY_END = '<!-- ECC:SUMMARY:END -->';
 

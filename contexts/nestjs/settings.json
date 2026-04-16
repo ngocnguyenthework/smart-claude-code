@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "description": "NestJS context — JS/TS auto-format (Biome/Prettier) + tsc --noEmit typecheck + console.log warning on edits.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/post-edit-format.js\"",
+            "timeout": 15000,
+            "async": true
+          }
+        ],
+        "description": "Auto-format JS/TS files with project's Biome or Prettier"
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/post-edit-typecheck.js\"",
+            "timeout": 20000,
+            "async": true
+          }
+        ],
+        "description": "Run tsc --noEmit on edited TS files for fast-fail type errors"
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'INPUT=$(cat); FILE=$(echo \"$INPUT\" | node -pe \"JSON.parse(require(\\\"fs\\\").readFileSync(0,\\\"utf8\\\")).tool_input.file_path || \\\"\\\"\" 2>/dev/null || echo \"\"); if echo \"$FILE\" | grep -qE \"\\.(ts|tsx|js|jsx)$\"; then if grep -q \"console\\.log\" \"$FILE\" 2>/dev/null; then echo \"[Hook] WARNING: console.log found in $FILE — remove before commit\" >&2; fi; fi'",
+            "timeout": 5000
+          }
+        ],
+        "description": "Warn about console.log statements in JS/TS files"
+      }
+    ]
+  }
+}

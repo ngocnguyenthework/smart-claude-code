@@ -1,0 +1,25 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['18', '20']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: node tests/run-all.js
+      - name: Validate install dry-run for every context
+        run: |
+          for ctx in common backend devops frontend all; do
+            echo "=== $ctx ==="
+            node scripts/install.js --context "$ctx" --dry-run --dir /tmp/sc-$ctx
+          done

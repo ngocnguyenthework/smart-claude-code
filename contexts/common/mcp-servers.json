@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "description": "Live documentation lookup for libraries and frameworks. Use when: checking API syntax, version migration guides, config options for React/Next.js/NestJS/FastAPI/Terraform/etc. Prefer over web search for library docs"
+    },
+    "exa-web-search": {
+      "command": "npx",
+      "args": ["-y", "exa-mcp-server"],
+      "env": { "EXA_API_KEY": "${EXA_API_KEY}" },
+      "description": "Semantic web search via Exa API — returns clean content, not just links. Use when: researching best practices, finding blog posts or tutorials, comparing approaches, looking up error messages. Use after GitHub search and primary docs"
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "description": "Step-by-step chain-of-thought reasoning. Use when: planning complex multi-step tasks, breaking down architectural decisions, debugging intricate logic, evaluating trade-offs between approaches"
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "description": "Persistent knowledge graph across sessions — stores entities, relations, observations. Use when: remembering project decisions, tracking team preferences, maintaining context about ongoing initiatives across conversations"
+    }
+  }
+}
