@@ -26,10 +26,10 @@ One file per entity inside each layer folder. Routers aggregate in `api/v1/api_v
 - **Soft delete is default.** Repositories filter `deleted_at IS NULL`; `delete()` sets `deleted_at`.
 - **`Mapped[type]` everywhere** — SQLAlchemy 2.0 style only, no legacy `Column()`.
 - **`@transactional_session` decorator** on repository methods — **not** `Depends(get_db)` in routes. Sessions flow implicitly unless you need multi-step atomicity (then `async with get_db() as db: ...` in the service).
-- **Module-level singletons** for services/repositories (`company_service = CompanyService()`). `Depends()` is used **only for auth** (`verify_api_key`, `verify_openwebui_access_token`).
+- **Module-level singletons** for services/repositories (`company_service = CompanyService()`). `Depends()` is used **only for auth** (`verify_api_key`).
 - **Thin routes**: validate params → call service → return. No DB, no logic.
 - **Pydantic v2** with `Annotated[type, Field(...)]`; response models inherit `BaseResponseModel` (`ConfigDict(from_attributes=True)`).
-- **Nested `BaseSettings`** — `DatabaseSettings`, `OpenWebUISettings`, etc. under one `Settings`.
+- **Nested `BaseSettings`** — `DatabaseSettings`, etc. under one `Settings`.
 - **Singleton `HttpClient`** for outbound HTTP, init/close in `lifespan`.
 - **`HTTPException` only** — no custom exception hierarchy, one global catch-all handler.
 - **stdlib `logging`** — not loguru/structlog. Per-module log levels via env vars.

@@ -22,7 +22,7 @@ src/
         company.py
         ...
   core/
-    config.py              # nested BaseSettings (Database, OpenWebUI, ...)
+    config.py              # nested BaseSettings (Database, ...)
     exceptions.py          # global exception handler
     http_client.py         # singleton httpx.AsyncClient
     logging.py             # stdlib logging config with per-module levels
@@ -57,7 +57,7 @@ Routers live under `api/v1/routers/`, aggregated in `api/v1/api_v1.py`, mounted 
 - Always specify `response_model` and explicit `description`.
 - Path/query params validated with `Path(gt=0)` / `Query(...)` — never accept a raw `int` without a constraint.
 - Routes are **thin**: extract params, call service, return. No DB access, no business logic.
-- `Depends()` is used for **auth only** (`verify_api_key`, `verify_openwebui_access_token`, `verify_auth`). Services and repositories are **module-level singletons** — do not inject them via `Depends`.
+- `Depends()` is used for **auth only** (`verify_api_key`). Services and repositories are **module-level singletons** — do not inject them via `Depends`.
 
 ```python
 # api/v1/routers/company.py
@@ -93,15 +93,11 @@ from typing import Annotated
 from fastapi import Depends
 
 async def verify_api_key(...) -> str: ...
-async def verify_openwebui_access_token(...) -> str: ...
-async def verify_auth(...) -> str: ...
 
 ApiKey = Annotated[str, Depends(verify_api_key)]
-WebUIToken = Annotated[str, Depends(verify_openwebui_access_token)]
-AuthToken = Annotated[str, Depends(verify_auth)]
 ```
 
-Routers import `ApiKey` / `WebUIToken` / `AuthToken` directly — no `Depends(...)` in the route signature itself.
+Routers import `ApiKey` directly — no `Depends(...)` in the route signature itself.
 
 ```python
 # api/v1/api_v1.py

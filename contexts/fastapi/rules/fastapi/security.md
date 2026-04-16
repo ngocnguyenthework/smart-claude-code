@@ -4,17 +4,15 @@ paths:
 ---
 # FastAPI Security
 
-> Extends [common/security.md](../common/security.md). These rules match what this service actually does — API-key + external-JWT auth, no local user passwords.
+> Extends [common/security.md](../common/security.md). These rules match what this service actually does — API-key auth, no local user passwords.
 
 ## Authentication
 
-Two auth dependencies coexist, plus a fallback:
+Server-to-server only:
 
-- `verify_api_key` — server-to-server. `Authorization: Bearer <key>` with SHA256 hash lookup.
-- `verify_openwebui_access_token` — end-user. Validates a JWT against the upstream OpenWebUI service.
-- `verify_auth` — tries both, for endpoints reachable from either caller type.
+- `verify_api_key` — `Authorization: Bearer <key>` with SHA256 hash lookup.
 
-**We do not hash user passwords locally.** No passlib, no bcrypt, no argon2 in this codebase — user auth is delegated to the upstream service.
+**We do not hash user passwords locally.** No passlib, no bcrypt, no argon2 in this codebase.
 
 ```python
 # utils/auth.py
@@ -119,7 +117,7 @@ await db.execute(text("SELECT * FROM users WHERE email = :email"), {"email": ema
 - All secrets come from environment via nested `BaseSettings` classes — never hardcode.
 - `.env`, `.env.dev` loaded by `uvicorn` via `env_file=` in `launcher.py`.
 - Never commit `.env*` files. `.env.example` lives in the repo with placeholder values.
-- `DatabaseSettings`, `OpenWebUISettings` etc. fail fast at startup if required fields are missing.
+- `DatabaseSettings` etc. fail fast at startup if required fields are missing.
 
 ## Rate Limiting
 

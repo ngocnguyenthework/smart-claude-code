@@ -171,16 +171,24 @@ function mergeHooks(baseHooks, addHooks) {
 
 function mergeSettings(contexts) {
   let hooks = {};
+  const env = {};
+  const permissions = {};
   for (const ctx of contexts) {
     const file = path.join(CONTEXTS_ROOT, ctx, 'settings.json');
     const content = loadJson(file);
-    if (content && content.hooks) hooks = mergeHooks(hooks, content.hooks);
+    if (!content) continue;
+    if (content.hooks) hooks = mergeHooks(hooks, content.hooks);
+    if (content.env) Object.assign(env, content.env);
+    if (content.permissions) Object.assign(permissions, content.permissions);
   }
-  return {
+  const merged = {
     $schema: 'https://json.schemastore.org/claude-code-settings.json',
     description: `smart-claude merged settings (contexts: ${contexts.join(', ')})`,
     hooks,
   };
+  if (Object.keys(env).length > 0) merged.env = env;
+  if (Object.keys(permissions).length > 0) merged.permissions = permissions;
+  return merged;
 }
 
 function mergeMcpServers(contexts) {
@@ -287,7 +295,6 @@ function planCopies(contexts, target) {
   return copies;
 }
 
-const ALWAYS_COPY_HOOKS = new Set(['run-with-flags.js']);
 const HOOK_SCRIPT_REFERENCE_RE = /scripts\/hooks\/([\w.-]+\.js)/g;
 
 function extractReferencedHookBasenames(mergedHooks) {
@@ -314,7 +321,7 @@ function extractReferencedHookBasenames(mergedHooks) {
 }
 
 function planScripts(referencedHookBasenames) {
-  const keep = new Set([...ALWAYS_COPY_HOOKS, ...(referencedHookBasenames || [])]);
+  const keep = new Set(referencedHookBasenames || []);
   const scripts = [];
   for (const sub of ['hooks', 'lib']) {
     const srcDir = path.join(REPO_ROOT, 'scripts', sub);

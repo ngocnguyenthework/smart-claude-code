@@ -46,7 +46,7 @@ alias claude-ops='claude --append-system-prompt "$(cat .claude/contexts/devops.m
 | `kubectl apply\|delete` to a prod context | **Block** unless env-var gate set |
 | `argocd app sync\|delete` for prod-tagged apps | **Warn** |
 
-These fire in the `PreToolUse` Bash hook. Disable per session: `SC_DISABLED_HOOKS=devops-tf-guard claude-ops`.
+These fire in the `PreToolUse` Bash hook.
 
 ---
 
@@ -295,7 +295,7 @@ If anything exceeds, flag it.
    - Recent infra change? → terraform state revert or explicit targeted change
    - External (cloud provider, DNS)? → confirm with status page, not with commands
 5. Once cause is identified, one change at a time with explicit approval
-6. Post-incident: write the ADR / postmortem with chief-of-staff or doc-updater agent
+6. Post-incident: write the ADR / postmortem with the doc-updater agent
 ```
 
 **Effective prompt:**

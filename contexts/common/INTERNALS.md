@@ -22,7 +22,7 @@ Stop            After Claude finishes responding to you.
 
 ### Per-hook reference
 
-All Node scripts live in `.claude/scripts/hooks/` and are invoked through `run-with-flags.js`, which handles the `SC_HOOK_PROFILE` / `SC_DISABLED_HOOKS` gating (see below).
+All Node scripts live in `.claude/scripts/hooks/`.
 
 | Script | Event | What it does |
 |---|---|---|
@@ -43,38 +43,6 @@ All Node scripts live in `.claude/scripts/hooks/` and are invoked through `run-w
 
 - **common**: blocks `git push --no-verify` / `git commit --no-verify`; reminds to run long-lived processes (`npm run dev`, `pytest -f`) inside `tmux` so the session survives terminal close; `console.log` grep warning after JS/TS edits.
 - **devops**: blocks `terraform apply` without an immediately-prior plan; blocks `kubectl apply|delete` to a context named `prod*` unless an env-var gate is set; blocks `terragrunt run-all apply`; warns on `argocd app sync|delete` for prod-tagged apps.
-
----
-
-## Hook gating — `SC_HOOK_PROFILE` and `SC_DISABLED_HOOKS`
-
-`run-with-flags.js` (via `scripts/lib/hook-flags.js`) reads two env vars before running any hook:
-
-### `SC_HOOK_PROFILE`
-
-| Profile | Effect |
-|---|---|
-| `minimal` | Only safety gates (secrets, no-verify, config protection). Format/typecheck/suggest-compact skipped. |
-| `standard` (default) | All hooks except opt-in strict ones. |
-| `strict` | Everything, including the more noisy warnings. |
-
-Each hook declares its allowed profiles in `settings.json` (defaults to `["standard", "strict"]` if unset).
-
-### `SC_DISABLED_HOOKS`
-
-Comma-separated hook IDs. Takes precedence over the profile — a disabled hook never runs.
-
-```bash
-SC_DISABLED_HOOKS=post-edit-typecheck,suggest-compact claude
-SC_HOOK_PROFILE=minimal claude
-```
-
-### Gate logic
-
-1. Normalize hook ID to lowercase.
-2. If in `SC_DISABLED_HOOKS` → disabled (return false).
-3. Get `SC_HOOK_PROFILE` (default: `standard`).
-4. If profile is in hook's allowed profiles → run.
 
 ---
 
@@ -256,7 +224,7 @@ What the installer writes into a target project:
 │   ├── settings.json     # merged hook registrations
 │   ├── scripts/
 │   │   ├── hooks/        # Node hook scripts
-│   │   └── lib/          # shared helpers (hook-flags.js, resolve-formatter.js)
+│   │   └── lib/          # shared helpers (resolve-formatter.js)
 │   └── docs/             # this file + per-context READMEs
 │       ├── INTERNALS.md
 │       ├── common-README.md
@@ -273,4 +241,4 @@ Hook scripts use `${CLAUDE_PROJECT_DIR}` to resolve paths, so the install is pos
 
 - A specific workflow → `.claude/docs/<ctx>-README.md` for your stack
 - Universal patterns (bug fix, planning, code review) → `.claude/docs/common-README.md`
-- Something weird happening → this file + `node ${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/run-with-flags.js --help`
+- Something weird happening → this file and the per-context READMEs

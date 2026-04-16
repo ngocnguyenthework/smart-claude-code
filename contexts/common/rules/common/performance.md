@@ -33,7 +33,7 @@ Lower context sensitivity tasks:
 ## Build Troubleshooting
 
 If build fails:
-1. Use **build-error-resolver** agent
-2. Analyze error messages
-3. Fix incrementally
-4. Verify after each fix
+1. Run `/build-fix` — routes to the stack-specific **build-error-resolver** (fastapi / nestjs / frontend).
+2. Analyze error messages from the root cause outward.
+3. Fix incrementally with minimal diffs.
+4. Re-run the build after each fix; do not batch multiple speculative fixes.

@@ -69,7 +69,6 @@ test('--context nestjs copies agents and writes merged settings', () => {
       !fs.existsSync(path.join(claudeDir, 'agents', 'terraform-reviewer.md')),
       'devops agents should NOT land when installing nestjs',
     );
-    assert.ok(fs.existsSync(path.join(claudeDir, 'scripts', 'hooks', 'run-with-flags.js')));
     assert.ok(!fs.existsSync(path.join(tmpDir, 'scripts')), 'scripts must nest under .claude/, not project root');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -101,9 +100,7 @@ test('--context fastapi copies only Python hook scripts, not JS/TS ones', () => 
     assert.ok(!fs.existsSync(path.join(hooks, 'post-edit-format.js')), 'JS/TS formatter hook must NOT land in fastapi-only install');
     assert.ok(!fs.existsSync(path.join(hooks, 'post-edit-typecheck.js')), 'JS/TS typecheck hook must NOT land in fastapi-only install');
     assert.ok(fs.existsSync(path.join(hooks, 'session-start.js')), 'common hook must always land');
-    assert.ok(fs.existsSync(path.join(hooks, 'run-with-flags.js')), 'wrapper must always land');
     const lib = path.join(tmpDir, '.claude', 'scripts', 'lib');
-    assert.ok(fs.existsSync(path.join(lib, 'hook-flags.js')), 'lib/* always copied');
     assert.ok(fs.existsSync(path.join(lib, 'resolve-formatter.js')), 'lib/* always copied');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -392,6 +389,41 @@ test('--target cursor does not create a .gitignore', () => {
     const result = runInstall(['--context', 'frontend', '--target', 'cursor', '--dir', tmpDir]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.ok(!fs.existsSync(path.join(tmpDir, '.gitignore')), 'cursor target must not touch .gitignore');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('merged settings.json carries env and permissions from common', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'common', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(tmpDir, '.claude', 'settings.json'), 'utf8'),
+    );
+    assert.equal(settings.env.CLAUDE_CODE_EFFORT_LEVEL, 'max');
+    assert.equal(settings.env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING, '1');
+    assert.equal(settings.env.CLAUDE_CODE_DISABLE_1M_CONTEXT, '1');
+    assert.equal(settings.permissions.defaultMode, 'plan');
+    assert.ok(Array.isArray(settings.permissions.deny));
+    assert.ok(settings.permissions.deny.includes('Bash(git push*)'));
+    assert.ok(settings.permissions.deny.includes('Read(.env*)'));
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('merged settings.json preserves env and permissions across multi-context install', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'fastapi,devops', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(tmpDir, '.claude', 'settings.json'), 'utf8'),
+    );
+    assert.equal(settings.env.CLAUDE_CODE_EFFORT_LEVEL, 'max');
+    assert.equal(settings.permissions.defaultMode, 'plan');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

@@ -399,8 +399,6 @@ Every `.py` Edit/Write triggers (async, in this order):
 2. `ruff check --fix` — autofix lint issues
 3. `mypy` / `pyright` / `ty` — whichever is configured in `pyproject.toml`
 
-Disable for a session: `SC_DISABLED_HOOKS=post-edit-format-python,post-edit-typecheck-python claude-py`.
-
 ---
 
 ## Pair-with

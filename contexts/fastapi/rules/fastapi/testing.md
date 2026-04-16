@@ -179,7 +179,7 @@ async def test_get_by_external_id_not_found(monkeypatch):
 
 ## External Services
 
-Never hit OpenWebUI, the HR Forte API, or any upstream in tests. Patch `HttpClient.instance()` or use `respx` to stub `httpx` calls.
+Never hit the HR Forte API or any upstream in tests. Patch `HttpClient.instance()` or use `respx` to stub `httpx` calls.
 
 ```python
 import respx, httpx

@@ -213,11 +213,11 @@ claude-py        # opens Claude Code with FastAPI mode framing pre-loaded
 | **code-reviewer** | Sonnet | Generalist review pass — style, readability, logic bugs. Use before opening a PR. |
 | **code-explorer** | Sonnet | "Where is X implemented?" / "How does this subsystem work?" — codebase navigation without modifying files. |
 | **refactor-cleaner** | Sonnet | Rename, extract, de-duplicate — pure refactors with no behavior change. Triggered by `/refactor-clean`. |
-| **build-error-resolver** | Sonnet | CI/build is red and you want the root cause fixed (not silenced). Triggered by `/build-fix`. |
 | **performance-optimizer** | Sonnet | Profile and speed up a specific hot path. Ask explicitly — not routed automatically. |
 | **doc-updater** | Sonnet | Sync README / CHANGELOG / comments after a behavioural change. Use after a feature lands. |
 | **docs-lookup** | Sonnet | "How does library X do Y?" — uses the `context7` MCP to fetch live API docs. |
-| **chief-of-staff** | Opus | Multi-day project coordination — breaks down epics, tracks dependencies across agents. |
+
+> `build-error-resolver` is shipped **per stack** (fastapi / nestjs / frontend), not in common — each variant speaks its stack's tooling (`uv run mypy` for Python, `npx tsc` for TS). Triggered by `/build-fix`.
 
 ### NestJS (`--context nestjs`)
 
@@ -266,23 +266,9 @@ Slash commands (e.g. `/plan`, `/fastapi-scaffold`, `/tf-plan-review`) and the fu
 | FastAPI commands (`/fastapi-scaffold`, `/db-migrate`) + 10 backend scenarios | [`contexts/fastapi/README.md`](./contexts/fastapi/README.md) |
 | DevOps commands (all 8) + 10 infra scenarios | [`contexts/devops/README.md`](./contexts/devops/README.md) |
 | Frontend scenarios + prompt patterns | [`contexts/frontend/README.md`](./contexts/frontend/README.md) |
-| **Internals**: full hook lifecycle (SessionStart → PreToolUse → PostToolUse → PreCompact → Stop), each hook script, session memory pipeline, `SC_HOOK_PROFILE` / `SC_DISABLED_HOOKS` gating, model routing, settings merge strategy | [`contexts/common/INTERNALS.md`](./contexts/common/INTERNALS.md) |
+| **Internals**: full hook lifecycle (SessionStart → PreToolUse → PostToolUse → PreCompact → Stop), each hook script, session memory pipeline, model routing, settings merge strategy | [`contexts/common/INTERNALS.md`](./contexts/common/INTERNALS.md) |
 
 Quick reference — the baseline `common` hooks cover session memory (`session-start`/`session-end`), safety gates (no-verify block, secret scan, config protection), and auto-format + type-check on every JS/TS/Python Edit/Write. The `devops` context adds prod-safety gates for `terraform apply`, `kubectl apply|delete` on prod, and `terragrunt run-all apply`.
-
-### Hook runtime flags
-
-Hooks route through `.claude/scripts/hooks/run-with-flags.js`, which reads two env vars so you can dial the stack on a per-session basis:
-
-```bash
-# Disable a specific hook this session:
-SC_DISABLED_HOOKS=post-edit-typecheck,suggest-compact claude
-
-# Run with a lighter profile (minimal | standard | strict):
-SC_HOOK_PROFILE=minimal claude
-```
-
-Full profile semantics live in [`contexts/common/INTERNALS.md`](./contexts/common/INTERNALS.md).
 
 ---
 
@@ -360,7 +346,7 @@ smart-claude/
 │   └── frontend/            React + Next + Tailwind + shadcn/ui + E2E
 ├── scripts/
 │   ├── hooks/               Node hook scripts (portable via ${CLAUDE_PROJECT_DIR})
-│   ├── lib/                 shared helpers (hook-flags, utils)
+│   ├── lib/                 shared helpers (resolve-formatter, utils)
 │   └── install.js           the installer
 ├── tests/                   node:test suite
 ├── install.sh / install.ps1 thin wrappers around scripts/install.js
@@ -378,7 +364,7 @@ Run `claude` from the repo root where you installed (`./install.sh --dir .` or d
 Your Claude Code version doesn't set `${CLAUDE_PROJECT_DIR}`. The hook scripts fall back to `process.cwd()`; the shell guardrail hooks (inline in `settings.json`) use `"${CLAUDE_PROJECT_DIR}"` with quoted expansion. Upgrade Claude Code to a recent version.
 
 **"post-edit-typecheck is slow on big repos."**
-Disable per-session: `SC_DISABLED_HOOKS=post-edit-typecheck claude`. Or switch to the minimal profile: `SC_HOOK_PROFILE=minimal claude`.
+Edit `.claude/settings.json` to drop the PostToolUse hook that runs `post-edit-typecheck.js`, or delete the script.
 
 **"I want to re-install and overwrite."**
 Add `--force`:

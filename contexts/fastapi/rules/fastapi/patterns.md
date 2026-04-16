@@ -267,14 +267,9 @@ class DatabaseSettings(BaseSettings):
     def DB_URL(self) -> str:
         return f"postgresql+asyncpg://{self.DB_USERNAME}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
-class OpenWebUISettings(BaseSettings):
-    URL: str = Field(alias="OPEN_WEBUI_URL")
-    SECRET_KEY: str = Field(alias="OPEN_WEBUI_SECRET_KEY")
-
 class Settings(BaseSettings):
     ENV: Environment = Environment.DEV
     DATABASE: DatabaseSettings = DatabaseSettings()
-    OPEN_WEBUI: OpenWebUISettings = OpenWebUISettings()
 
     @property
     def is_dev(self) -> bool: return self.ENV == Environment.DEV
@@ -387,24 +382,23 @@ from fastapi import Depends
 async def verify_api_key(...) -> str: ...
 
 ApiKey = Annotated[str, Depends(verify_api_key)]
-WebUIToken = Annotated[str, Depends(verify_openwebui_access_token)]
 ```
 
 ```python
-# api/v1/routers/chatbot.py
+# api/v1/routers/company.py
 from typing import Annotated
 from fastapi import APIRouter, Path
-from utils.auth import WebUIToken
-from services.chatbot import chatbot_service
+from utils.auth import ApiKey
+from services.company import company_service
 
 router = APIRouter()
 
-@router.get("/companies/{external_company_id}/models", response_model=list[ModelResponse])
-async def get_company_models(
-    external_company_id: Annotated[int, Path(gt=0)],
-    _token: WebUIToken,
-) -> list[ModelResponse]:
-    return await chatbot_service.get_company_models(external_company_id)
+@router.get("/companies/{company_id}", response_model=CompanyResponse)
+async def get_company(
+    company_id: Annotated[int, Path(gt=0)],
+    _token: ApiKey,
+) -> CompanyResponse:
+    return await company_service.get_by_id(company_id)
 ```
 
 **Why this matters:** default-style `x: int = Path(gt=0)` collides with real default values (you can't write `x: int = 5 + Path(...)`), hides params in function defaults rather than annotations, and is the older style. New code uses `Annotated`.
@@ -435,7 +429,7 @@ For plain byte streams (downloads, pass-through), return `StreamingResponse(byte
 
 ### Server-Sent Events (FastAPI 0.135+)
 
-Use for token-by-token LLM output, live dashboards, progress streams. The upstream OpenWebUI proxy handles this today for chatbot responses — but if streaming ever lands in-process, this is the shape:
+Use for token-by-token LLM output, live dashboards, progress streams. Not used in-process today — but if streaming does land in-process, this is the shape:
 
 ```python
 from fastapi import APIRouter
@@ -514,7 +508,7 @@ When upgrading past 0.132, be aware: JSON endpoints reject requests without `Con
 ## What we do NOT use
 
 - **Background tasks** (`BackgroundTasks`) — we queue work via the sync-events endpoint; no in-process fire-and-forget.
-- **Streaming responses today** — handled by the OpenWebUI proxy upstream. (The patterns above exist so that when streaming does land in-process, we don't reinvent it.)
+- **Streaming responses today** — not handled in-process. (The patterns above exist so that when streaming does land in-process, we don't reinvent it.)
 - **Custom exception hierarchy** — `HTTPException` everywhere + one global handler.
 - **`Depends(get_db)` in routes** — use `@transactional_session` on repository methods instead.
 - **Class-based dependency-injected services** — services/repos are module-level singletons.

@@ -12,7 +12,7 @@ The baseline bundle. **Always installed** with every `--context` selection. Ship
 
 | Folder | What's in it |
 |---|---|
-| `agents/` | 10 generalist agents (architect, planner, code-reviewer, explorer, refactor-cleaner, build-error-resolver, performance-optimizer, doc-updater, docs-lookup, chief-of-staff) |
+| `agents/` | 8 generalist agents (architect, planner, code-reviewer, code-explorer, refactor-cleaner, performance-optimizer, doc-updater, docs-lookup) |
 | `commands/` | 7 workflow commands (`/plan`, `/code-review`, `/refactor-clean`, `/build-fix`, `/checkpoint`, `/learn`, `/prompt-optimize`) |
 | `rules/common/` | cross-cutting style + security + testing rules |
 | `skills/` | 19 shared skills (agentic engineering, verification loops, codebase onboarding, autonomous loops, deep research, etc.) |
@@ -314,9 +314,9 @@ Invokes the refactor-cleaner (Sonnet). Uses knip / depcheck / ts-prune / ruff to
 
 ### `/build-fix`
 
-Invokes build-error-resolver (Sonnet). Minimal diffs, no architectural changes.
+Detects the build system and invokes the **stack-specific `build-error-resolver`** (Sonnet) — Python variant for FastAPI, TypeScript/React variant for frontend, TypeScript/Nest variant for NestJS. Minimal diffs, no architectural changes.
 
-**Use when:** `tsc` / `build` / CI is red and you want the root cause fixed, not silenced.
+**Use when:** `tsc` / `mypy` / `ruff` / `build` / CI is red and you want the root cause fixed, not silenced.
 
 **Prompt shape:**
 ```
@@ -324,7 +324,7 @@ Invokes build-error-resolver (Sonnet). Minimal diffs, no architectural changes.
   [optional] error: <paste log>
 ```
 
-**What it won't do:** suppress errors with `@ts-ignore`, `any`, or `# type: ignore` unless you explicitly allow it.
+**What it won't do:** suppress errors with `@ts-ignore`, `as any`, `# type: ignore`, or `# noqa` unless you explicitly allow it.
 
 ---
 
@@ -443,7 +443,6 @@ Most agents auto-invoke. Ask explicitly only when you want to bypass routing.
 | A one-shot codemap | "Ask the code-explorer to map src/ for me…" |
 | Perf profiling on a specific path | "Ask performance-optimizer to profile X…" |
 | Docs sync | "Ask doc-updater to sync README after this change…" |
-| Multi-day coordination | "Chief-of-staff: we're working on epics A and B, what's today's priority?" |
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: fastapi-reviewer
-description: FastAPI code reviewer tuned to this codebase's conventions — layer-by-kind layout, @transactional_session, Mapped[] models, soft-delete, module-level service singletons, API-key + OpenWebUI auth. Use for all FastAPI/Python API changes.
+description: FastAPI code reviewer tuned to this codebase's conventions — layer-by-kind layout, @transactional_session, Mapped[] models, soft-delete, module-level service singletons, API-key auth. Use for all FastAPI/Python API changes.
 tools: ["Read", "Grep", "Glob", "Bash"]
 model: sonnet
 ---
@@ -19,7 +19,7 @@ You are a senior FastAPI reviewer enforcing the conventions documented in `rules
 
 ### CRITICAL — Security
 
-- Missing `Depends(verify_api_key | verify_openwebui_access_token | verify_auth)` on a non-public endpoint.
+- Missing `Depends(verify_api_key)` on a non-public endpoint.
 - Raw `dict` / `Any` request body instead of a Pydantic model.
 - API key stored without SHA256 hashing (`gen_sha256_string`) — plaintext in DB is a bug.
 - f-string or `.format()` used inside `text(...)` SQL. ORM queries that concatenate user input into column names.
@@ -68,7 +68,7 @@ You are a senior FastAPI reviewer enforcing the conventions documented in `rules
 ### HIGH — Modern Dependency Injection
 
 - New code uses legacy `x: T = Depends(dep)` / `x: int = Path(...)` instead of `Annotated[T, Depends(dep)]` / `Annotated[int, Path(...)]`. Mixed styles in a single file are a red flag.
-- Repeated `Annotated[str, Depends(verify_api_key)]` written inline in multiple routes — should be a named alias (`ApiKey`, `WebUIToken`, `AuthToken`) in `utils/auth.py`.
+- Repeated `Annotated[str, Depends(verify_api_key)]` written inline in multiple routes — should be a named alias (`ApiKey`) in `utils/auth.py`.
 - `x: Annotated[T, Depends(dep)] = Depends(dep)` — `Depends` specified twice; drop the default-arg form.
 
 ### HIGH — Router Organization
@@ -88,7 +88,7 @@ You are a senior FastAPI reviewer enforcing the conventions documented in `rules
 ### MEDIUM — External HTTP
 
 - Missing timeout on `HttpClient.instance()` call (default is 30s from init, but per-call override should be used for slow upstreams).
-- No retry / error handling around OpenWebUI or HR Forte API calls that are on the hot path.
+- No retry / error handling around HR Forte API calls that are on the hot path.
 
 ### MEDIUM — Streaming / SSE (if the change adds one)
 
@@ -106,7 +106,7 @@ You are a senior FastAPI reviewer enforcing the conventions documented in `rules
 ### MEDIUM — Tests
 
 - New endpoint without at least one happy-path + one auth-failure test (tests are sparse — raise awareness, don't block for this alone).
-- Test hits a real upstream (OpenWebUI, HR Forte API) instead of mocking via `respx` or patching `HttpClient`.
+- Test hits a real upstream (HR Forte API) instead of mocking via `respx` or patching `HttpClient`.
 
 ## Diagnostic Commands
 

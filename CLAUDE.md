@@ -47,9 +47,9 @@ Each contexts/<name>/ follows the same shape:
 
 scripts/
 ├── hooks/      Node hook scripts (copied into target's .claude/scripts/hooks/)
-├── lib/        shared hook helpers (hook-flags.js, etc.) → target's .claude/scripts/lib/
+├── lib/        shared hook helpers (resolve-formatter.js, etc.) → target's .claude/scripts/lib/
 └── install.js  the installer
-tests/          node:test suite (install.test.js, contexts.test.js, lib/*.test.js)
+tests/          node:test suite (install.test.js, contexts.test.js)
 ```
 
 There is **no** `.claude/` directory at the repo root — the installer generates one in the *target* project.
@@ -81,7 +81,7 @@ Passive knowledge documents. Structured as: context → pattern → code example
 Session framings / system prompts loaded via shell aliases (e.g. `claude-nest`, `claude-py`) that pass them through `--append-system-prompt`. Self-contained — no frontmatter.
 
 ### Hooks (`contexts/<ctx>/settings.json`)
-Per-context hook registrations. The installer **merges** hook arrays per event across `common + <selected>` into the target's `.claude/settings.json`. Scripts land in the target's `.claude/scripts/hooks/*.js` (source: `scripts/hooks/*.js` in this repo) and are invoked with absolute paths via `${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/...`. The `run-with-flags.js` wrapper adds `SC_HOOK_PROFILE` and `SC_DISABLED_HOOKS` env-var gating. All scripts must `exit 0` on non-critical errors.
+Per-context hook registrations. The installer **merges** hook arrays per event across `common + <selected>` into the target's `.claude/settings.json`. Scripts land in the target's `.claude/scripts/hooks/*.js` (source: `scripts/hooks/*.js` in this repo) and are invoked with absolute paths via `${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/...`. All scripts must `exit 0` on non-critical errors.
 
 ### MCP servers (`contexts/<ctx>/mcp-servers.json`)
 Per-context MCP registrations. The installer merges `mcpServers` keys across contexts and writes a single **project-scope `.mcp.json`** at the target project root (not inside `.claude/`). See [Claude Code MCP docs — project scope](https://code.claude.com/docs/en/mcp#project-scope). Last context wins on key collision (`Object.assign`).
@@ -127,6 +127,5 @@ node tests/run-all.js
 
 - `tests/install.test.js` — end-to-end install behaviour (contexts, flags, cursor/codex remap, --force)
 - `tests/contexts.test.js` — structural invariants per context (required folders, valid JSON)
-- `tests/lib/hook-flags.test.js` — `SC_HOOK_PROFILE` / `SC_DISABLED_HOOKS` gating
 
 Add tests when you change anything in `scripts/`, add a new context, or change the install contract.

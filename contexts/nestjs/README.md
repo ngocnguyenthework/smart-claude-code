@@ -403,8 +403,6 @@ Inherited from `common`:
 2. `post-edit-typecheck.js` — `tsc --noEmit` on the edited file's project
 3. `console.log` warning (doesn't block)
 
-Disable for a session: `SC_DISABLED_HOOKS=post-edit-typecheck claude-nest`.
-
 ---
 
 ## Pair-with
