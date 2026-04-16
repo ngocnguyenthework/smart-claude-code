@@ -14,13 +14,18 @@ A **context-isolated** Claude Code toolkit. Clone once, then install only the co
 - [Quick Start](#quick-start)
 - [What Each Context Includes](#what-each-context-includes)
 - [Install Guide](#install-guide)
+- [Shell Aliases (Per-Context System Prompts)](#shell-aliases-per-context-system-prompts)
 - [Agents Catalogue](#agents-catalogue)
-- [Commands Catalogue](#commands-catalogue)
-- [Hooks Catalogue](#hooks-catalogue)
+- [Commands & Hooks — see per-context docs](#commands--hooks--see-per-context-docs)
 - [MCP Servers](#mcp-servers)
 - [Multi-Harness (Cursor / Codex)](#multi-harness-cursor--codex)
 - [Developing smart-claude Itself](#developing-smart-claude-itself)
 - [Troubleshooting](#troubleshooting)
+
+> **After you install** into a target project, the full workflow guides land at `.claude/docs/`:
+> - `common-README.md` — universal workflows (feature dev, bug fix, planning, prompt patterns)
+> - `<ctx>-README.md` — stack-specific scenarios (e.g. `fastapi-README.md`, `devops-README.md`)
+> - `INTERNALS.md` — hook lifecycle, session memory, safety guardrails, model routing
 
 ---
 
@@ -114,7 +119,8 @@ What happens:
 1. `.claude/agents/`, `.claude/commands/`, `.claude/rules/`, `.claude/skills/`, `.claude/contexts/` — markdown files for your chosen contexts.
 2. `.claude/settings.json` — merged hook registrations across `common` + selected contexts.
 3. `.claude/scripts/hooks/` + `.claude/scripts/lib/` — the hook runtime that `.claude/settings.json` invokes via `${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/...`.
-4. `.mcp.json` at the **project root** — merged MCP server registrations at project scope (see [Claude Code MCP docs](https://code.claude.com/docs/en/mcp#project-scope)). Commit it to share servers with your team.
+4. `.claude/docs/` — per-context READMEs (`common-README.md`, `<ctx>-README.md`) + `INTERNALS.md`. Read these first when you want to know "what's the right workflow for this scenario".
+5. `.mcp.json` at the **project root** — merged MCP server registrations at project scope (see [Claude Code MCP docs](https://code.claude.com/docs/en/mcp#project-scope)). Commit it to share servers with your team.
 
 ### 4. Install flags
 
@@ -138,6 +144,59 @@ claude
 #   /agents        — confirm installed agents are visible
 #   /plan "add a login form"   — verify the planner agent responds
 ```
+
+---
+
+## Shell Aliases (Per-Context System Prompts)
+
+Each context ships a session-framing markdown file at `contexts/<ctx>/contexts/<name>.md` (e.g., [`contexts/devops/contexts/devops.md`](./contexts/devops/contexts/devops.md), [`contexts/fastapi/contexts/fastapi.md`](./contexts/fastapi/contexts/fastapi.md)). The installer copies these into the target project at `<project>/.claude/contexts/<name>.md`.
+
+Wire up shell aliases that pre-load one of these files as the **system prompt** via Claude Code's `--append-system-prompt` flag, so every session starts already framed for the stack you're working on (active agents, guardrails, tone, priorities).
+
+### 1. Add the aliases to your shell rc
+
+Append to `~/.zshrc` (or `~/.bashrc`):
+
+```bash
+# Per-stack framings — load .claude/contexts/<name>.md from cwd as system prompt
+alias claude-nest='claude --append-system-prompt "$(cat .claude/contexts/nestjs.md 2>/dev/null)"'
+alias claude-py='claude --append-system-prompt "$(cat .claude/contexts/fastapi.md 2>/dev/null)"'
+alias claude-ops='claude --append-system-prompt "$(cat .claude/contexts/devops.md 2>/dev/null)"'
+alias claude-fe='claude --append-system-prompt "$(cat .claude/contexts/frontend.md 2>/dev/null)"'
+
+# Common framings (always installed with `common`)
+alias claude-dev='claude --append-system-prompt "$(cat .claude/contexts/dev.md 2>/dev/null)"'
+alias claude-research='claude --append-system-prompt "$(cat .claude/contexts/research.md 2>/dev/null)"'
+alias claude-review='claude --append-system-prompt "$(cat .claude/contexts/review.md 2>/dev/null)"'
+```
+
+Reload: `source ~/.zshrc` (or open a new terminal).
+
+### 2. Run from your project root
+
+```bash
+cd ~/code/my-fastapi-svc
+claude-py        # opens Claude Code with FastAPI mode framing pre-loaded
+```
+
+### Alias → context map
+
+| Alias             | Loads                              | Best for                          |
+|-------------------|------------------------------------|-----------------------------------|
+| `claude-nest`     | `.claude/contexts/nestjs.md`       | NestJS API / DB work              |
+| `claude-py`       | `.claude/contexts/fastapi.md`      | FastAPI / DB work                 |
+| `claude-ops`      | `.claude/contexts/devops.md`       | Infra, Terraform, K8s, ArgoCD     |
+| `claude-fe`       | `.claude/contexts/frontend.md`     | React / Next.js / Tailwind        |
+| `claude-dev`      | `.claude/contexts/dev.md`          | Fast coding, any stack            |
+| `claude-research` | `.claude/contexts/research.md`     | Exploring an unfamiliar codebase  |
+| `claude-review`   | `.claude/contexts/review.md`       | PR review, security audit         |
+
+### Notes
+
+- The path is **relative** (`.claude/contexts/...`) — one alias works across every project where you've installed the matching context. Run it from the project root.
+- `2>/dev/null` makes the alias degrade to plain `claude` if you're outside an installed project (no error noise).
+- Adding a new framing? Drop it into `contexts/<ctx>/contexts/<name>.md`, re-run `./install.sh --context <ctx> --force`, then add a matching alias following the pattern above.
+- `--append-system-prompt` **adds to** the default Claude Code system prompt — it doesn't replace it. Project-level CLAUDE.md, agents, and hooks still apply.
 
 ---
 
@@ -196,105 +255,20 @@ claude
 
 ---
 
-## Commands Catalogue
+## Commands & Hooks — see per-context docs
 
-> Slash commands live under `.claude/commands/` and are invoked in Claude Code as `/command-name`.
+Slash commands (e.g. `/plan`, `/fastapi-scaffold`, `/tf-plan-review`) and the full hook lifecycle are documented where they make sense: inside each context. After installing, read the relevant file from `.claude/docs/`.
 
-### Common
+| Topic | Where |
+|---|---|
+| Universal commands (`/plan`, `/code-review`, `/refactor-clean`, `/build-fix`, `/checkpoint`, `/learn`, `/prompt-optimize`) | [`contexts/common/README.md`](./contexts/common/README.md) |
+| NestJS commands (`/nestjs-scaffold`, `/db-migrate`) + 10 backend scenarios | [`contexts/nestjs/README.md`](./contexts/nestjs/README.md) |
+| FastAPI commands (`/fastapi-scaffold`, `/db-migrate`) + 10 backend scenarios | [`contexts/fastapi/README.md`](./contexts/fastapi/README.md) |
+| DevOps commands (all 8) + 10 infra scenarios | [`contexts/devops/README.md`](./contexts/devops/README.md) |
+| Frontend scenarios + prompt patterns | [`contexts/frontend/README.md`](./contexts/frontend/README.md) |
+| **Internals**: full hook lifecycle (SessionStart → PreToolUse → PostToolUse → PreCompact → Stop), each hook script, session memory pipeline, `SC_HOOK_PROFILE` / `SC_DISABLED_HOOKS` gating, model routing, settings merge strategy | [`contexts/common/INTERNALS.md`](./contexts/common/INTERNALS.md) |
 
-| Command | Scenario |
-|---------|----------|
-| `/plan` | "I want to add feature X — plan it out." Routes through the `planner` agent. |
-| `/code-review` | Review the current diff before opening a PR. |
-| `/refactor-clean` | Pure refactor — rename, extract, de-duplicate. |
-| `/build-fix` | CI is red. Get it green without silencing the failure. |
-| `/checkpoint` | Save a session checkpoint (state, todo, next steps) — resume later. |
-| `/learn` | Extract a reusable pattern from the current session into a skill. |
-| `/prompt-optimize` | Tighten a prompt file or agent instruction for clarity and cost. |
-| `/switch-fastapi` | Load the FastAPI context framing into the current session. |
-| `/switch-nestjs` | Load the NestJS context framing. |
-| `/switch-devops` | Load the DevOps context framing. |
-| `/switch-frontend` | Load the frontend context framing. |
-
-### NestJS
-
-| Command | Scenario |
-|---------|----------|
-| `/nestjs-scaffold` | Generate a NestJS module (controller + service + tests) from a feature description. |
-| `/db-migrate` | Draft and review a migration (schema change + backfill + rollback plan). |
-
-### FastAPI
-
-| Command | Scenario |
-|---------|----------|
-| `/fastapi-scaffold` | Generate a FastAPI router (route + service + Pydantic models + tests). |
-| `/db-migrate` | (Shared with `nestjs`) Draft and review a migration. |
-
-### DevOps
-
-| Command | Scenario |
-|---------|----------|
-| `/tf-plan-review` | Run `terraform plan` then route output to `terraform-reviewer` for gating. |
-| `/terragrunt-plan` | `terragrunt run-all plan` with review gating across stacks. |
-| `/argocd-audit` | Scan `Application` manifests for anti-patterns (auto-sync safety, RBAC). |
-| `/helm-lint` | `helm lint` + values schema validation. |
-| `/kustomize-diff` | Render + diff overlays before applying. |
-| `/k8s-audit` | Audit raw YAML for RBAC / resource limit / probe issues. |
-| `/aws-cost-check` | Surface unexpected cost drivers in the AWS account from recent Terraform changes. |
-| `/infra-security-scan` | Cross-tool infra security pass. |
-
-### Frontend
-
-The `frontend` context currently ships no dedicated slash commands — `/plan`, `/code-review`, and `/e2e` (delegated via the `e2e-runner` agent) cover the core flows.
-
----
-
-## Hooks Catalogue
-
-> Hooks live in `.claude/scripts/hooks/` (source: this repo's `scripts/hooks/`) and are registered in `.claude/settings.json`. They run on events Claude Code emits: `SessionStart`, `PreToolUse`, `PostToolUse`, `PreCompact`, `Stop`.
-
-### Common — always installed
-
-| Hook | Event | What it does | When it helps |
-|------|-------|-------------|---------------|
-| `session-start.js` | `SessionStart` | Loads the previous session summary + file list into context. | You resume work without re-explaining what you did yesterday. |
-| `(inline) --no-verify block` | `PreToolUse` (Bash) | Blocks `git push --no-verify` / `git commit --no-verify`. | You can't accidentally skip pre-commit hooks. |
-| `pre-bash-git-push-reminder.js` | `PreToolUse` (Bash) | Reminds you to review the diff and run tests before pushing. | Catches "I forgot to run the tests" moments. |
-| `(inline) tmux reminder` | `PreToolUse` (Bash) | Suggests running long-lived `npm run dev` / `pytest` inside tmux. | Prevents lost sessions when the terminal closes. |
-| `commit-quality.js` | `PreToolUse` (Bash) | Blocks commits with secrets; warns on `console.log`; nudges toward conventional-commit prefixes. | Stops credential leaks and noisy commits. |
-| `config-protection.js` | `PreToolUse` (Write/Edit) | Blocks edits to `.eslintrc`, `.prettierrc`, `tsconfig.json`, etc. unless explicitly allowed. | "Fix the code, not the config." |
-| `doc-file-warning.js` | `PreToolUse` (Write) | Warns on ad-hoc `NOTES.md` / `TODO.md` / `SCRATCH.md` outside structured dirs. | Keeps the repo tidy. |
-| `suggest-compact.js` | `PreToolUse` (*) | Suggests `/compact` after N tool calls. Async. | Keeps context window healthy on long sessions. |
-| `post-edit-format.js` | `PostToolUse` (Edit/Write/MultiEdit) | Auto-formats JS/TS via Biome -> Prettier -> none. Async. | No more "run the formatter" loops. |
-| `post-edit-typecheck.js` | `PostToolUse` (Edit/Write/MultiEdit) | Runs `tsc --noEmit` / `mypy` on touched files. Async. | Fast-fail on type errors before you commit. |
-| `(inline) console.log warn` | `PostToolUse` (Edit/Write) | Warns if `console.log` slipped into a `.ts/.tsx/.js/.jsx` file. | Debug-log safety net. |
-| `pre-compact.js` | `PreCompact` | Writes a compaction marker into the active session file. | Session summary remains coherent after `/compact`. |
-| `session-end.js` | `Stop` (async) | Persists session summary to `~/.claude/session-data/`. | Next `session-start.js` can rehydrate the conversation. |
-| `cost-tracker.js` | `Stop` (async) | Appends token usage + $ estimate to `~/.claude/metrics/costs.jsonl`. | You know what a refactor really cost you. |
-| `evaluate-session.js` | `Stop` (async) | Flags sessions with 10+ messages for skill extraction via `/learn`. | Turns repeat work into reusable skills. |
-
-### FastAPI — additions
-
-| Hook | Event | What it does |
-|------|-------|-------------|
-| `(inline) ruff format + check --fix` | `PostToolUse` (Edit/Write) on `.py` | Runs `ruff format` then `ruff check --fix` on edited Python files. |
-
-### NestJS — additions
-
-No context-specific hooks — JS/TS `post-edit-format` (Biome/Prettier) and `post-edit-typecheck` (`tsc --noEmit`) come from `common`.
-
-### DevOps — additions
-
-| Hook | Event | What it does |
-|------|-------|-------------|
-| `(inline) terraform apply guard` | `PreToolUse` (Bash) | Blocks `terraform apply` without `-auto-approve=false` / explicit confirmation. |
-| `(inline) kubectl prod guard` | `PreToolUse` (Bash) | Blocks `kubectl apply` / `delete` pointing at a prod context unless env var gate set. |
-| `(inline) terragrunt run-all apply guard` | `PreToolUse` (Bash) | Blocks `terragrunt run-all apply`. |
-| `(inline) ArgoCD prod sync warn` | `PreToolUse` (Bash) | Warns on `argocd app sync` / `delete` for prod-tagged apps. |
-
-### Frontend — additions
-
-Frontend currently adds no hooks beyond the common set (Biome/Prettier via `post-edit-format.js` already covers JS/TS).
+Quick reference — the baseline `common` hooks cover session memory (`session-start`/`session-end`), safety gates (no-verify block, secret scan, config protection), and auto-format + type-check on every JS/TS/Python Edit/Write. The `devops` context adds prod-safety gates for `terraform apply`, `kubectl apply|delete` on prod, and `terragrunt run-all apply`.
 
 ### Hook runtime flags
 
@@ -307,6 +281,8 @@ SC_DISABLED_HOOKS=post-edit-typecheck,suggest-compact claude
 # Run with a lighter profile (minimal | standard | strict):
 SC_HOOK_PROFILE=minimal claude
 ```
+
+Full profile semantics live in [`contexts/common/INTERNALS.md`](./contexts/common/INTERNALS.md).
 
 ---
 

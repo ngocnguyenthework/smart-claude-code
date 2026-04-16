@@ -44,7 +44,7 @@ test('invalid profile falls back to standard', () => {
 });
 
 test('SC_DISABLED_HOOKS disables the listed hook id', () => {
-  withEnv({ SC_DISABLED_HOOKS: 'commit-quality,cost-tracker' }, mod => {
+  withEnv({ SC_DISABLED_HOOKS: 'commit-quality,evaluate-session' }, mod => {
     assert.equal(mod.isHookEnabled('commit-quality'), false);
     assert.equal(mod.isHookEnabled('Commit-Quality'), false);
     assert.equal(mod.isHookEnabled('session-start'), true);
@@ -53,7 +53,7 @@ test('SC_DISABLED_HOOKS disables the listed hook id', () => {
 
 test('minimal profile excludes hooks scoped to standard/strict', () => {
   withEnv({ SC_HOOK_PROFILE: 'minimal' }, mod => {
-    assert.equal(mod.isHookEnabled('cost-tracker', { profiles: ['standard', 'strict'] }), false);
+    assert.equal(mod.isHookEnabled('evaluate-session', { profiles: ['standard', 'strict'] }), false);
   });
 });
 

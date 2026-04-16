@@ -1,67 +1,25 @@
 {
   "mcpServers": {
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT_HERE" },
-      "description": "GitHub operations — PRs, issues, repos"
-    },
     "context7": {
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp@latest"],
-      "description": "Live documentation lookup — pairs with /docs-lookup agent (resolve-library-id, query-docs)"
+      "description": "Live documentation lookup for libraries and frameworks. Use when: checking API syntax, version migration guides, config options for React/Next.js/NestJS/FastAPI/Terraform/etc. Prefer over web search for library docs"
     },
     "exa-web-search": {
       "command": "npx",
       "args": ["-y", "exa-mcp-server"],
-      "env": { "EXA_API_KEY": "YOUR_EXA_API_KEY_HERE" },
-      "description": "Web search and research via Exa API — use task-scoped after GitHub search and primary docs"
-    },
-    "firecrawl": {
-      "command": "npx",
-      "args": ["-y", "firecrawl-mcp"],
-      "env": { "FIRECRAWL_API_KEY": "YOUR_FIRECRAWL_KEY_HERE" },
-      "description": "Web scraping and crawling"
+      "env": { "EXA_API_KEY": "${EXA_API_KEY}" },
+      "description": "Semantic web search via Exa API — returns clean content, not just links. Use when: researching best practices, finding blog posts or tutorials, comparing approaches, looking up error messages. Use after GitHub search and primary docs"
     },
     "sequential-thinking": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
-      "description": "Chain-of-thought reasoning"
+      "description": "Step-by-step chain-of-thought reasoning. Use when: planning complex multi-step tasks, breaking down architectural decisions, debugging intricate logic, evaluating trade-offs between approaches"
     },
     "memory": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-memory"],
-      "description": "Persistent memory across sessions"
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/your/projects"],
-      "description": "Filesystem operations (set your path)"
-    },
-    "jira": {
-      "command": "uvx",
-      "args": ["mcp-atlassian==0.21.0"],
-      "env": {
-        "JIRA_URL": "YOUR_JIRA_URL_HERE",
-        "JIRA_EMAIL": "YOUR_JIRA_EMAIL_HERE",
-        "JIRA_API_TOKEN": "YOUR_JIRA_API_TOKEN_HERE"
-      },
-      "description": "Jira issue tracking — search, create, update, comment, transition"
-    },
-    "confluence": {
-      "command": "npx",
-      "args": ["-y", "confluence-mcp-server"],
-      "env": {
-        "CONFLUENCE_BASE_URL": "YOUR_CONFLUENCE_URL_HERE",
-        "CONFLUENCE_EMAIL": "YOUR_EMAIL_HERE",
-        "CONFLUENCE_API_TOKEN": "YOUR_CONFLUENCE_TOKEN_HERE"
-      },
-      "description": "Confluence Cloud — search pages, retrieve content, explore spaces"
-    },
-    "token-optimizer": {
-      "command": "npx",
-      "args": ["-y", "token-optimizer-mcp"],
-      "description": "Token optimization via content deduplication and compression"
+      "description": "Persistent knowledge graph across sessions — stores entities, relations, observations. Use when: remembering project decisions, tracking team preferences, maintaining context about ongoing initiatives across conversations"
     }
   }
 }

@@ -1,18 +1,31 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "description": "FastAPI context — Python auto-format via ruff.",
+  "description": "FastAPI context — Python auto-format (ruff) + type-check (mypy/pyright/ty, auto-detected) on .py edits.",
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit|Write",
+        "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'INPUT=$(cat); FILE=$(echo \"$INPUT\" | node -pe \"JSON.parse(require(\\\"fs\\\").readFileSync(0,\\\"utf8\\\")).tool_input.file_path || \\\"\\\"\" 2>/dev/null || echo \"\"); if echo \"$FILE\" | grep -qE \"\\.py$\"; then if command -v ruff >/dev/null 2>&1; then ruff format \"$FILE\" 2>/dev/null; ruff check --fix \"$FILE\" 2>/dev/null; fi; fi'",
-            "timeout": 15000
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/post-edit-format-python.js\"",
+            "timeout": 15000,
+            "async": true
           }
         ],
-        "description": "Auto-format Python files with ruff after edits"
+        "description": "Auto-format Python files with ruff (format + check --fix) after edits"
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/post-edit-typecheck-python.js\"",
+            "timeout": 30000,
+            "async": true
+          }
+        ],
+        "description": "Type-check edited .py files with the project's configured checker (mypy/pyright/ty). No-op if none configured."
       }
     ]
   }

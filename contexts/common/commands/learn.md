@@ -19,7 +19,7 @@ Run `/learn` at any point during a session when you've solved a non-trivial prob
 
 ## Output Format
 
-Create a skill file at `~/.claude/skills/learned/[pattern-name].md`:
+Create a skill file at `.claude/.storage/skills/learned/[pattern-name].md`:
 
 ```markdown
 # [Descriptive Pattern Name]
@@ -46,7 +46,7 @@ Create a skill file at `~/.claude/skills/learned/[pattern-name].md`:
 2. Identify the most valuable/reusable insight
 3. Draft the skill file
 4. Ask user to confirm before saving
-5. Save to `~/.claude/skills/learned/`
+5. Save to `.claude/.storage/skills/learned/`
 
 ## Notes
 

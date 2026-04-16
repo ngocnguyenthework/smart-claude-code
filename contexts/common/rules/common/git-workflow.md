@@ -1,19 +1,23 @@
 # Git Workflow
 
-## Commit Message Format
+## Commit Message Format (CRITICAL)
+
+Use **only** the one-line conventional-commit subject. **No body, no footer.**
+
 ```
 <type>: <description>
-
-<optional body>
 ```
 
 Types: feat, fix, refactor, docs, test, chore, perf, ci
 
-## Pull Request Workflow
+Rules:
+- Lowercase after the colon, no trailing period, keep under 72 chars
+- Do **not** add a body, bullet list, or `Co-Authored-By` footer
+- One commit = one logical change
 
-When creating PRs:
-1. Analyze full commit history (not just latest commit)
-2. Use `git diff [base-branch]...HEAD` to see all changes
-3. Draft comprehensive PR summary
-4. Include test plan with TODOs
-5. Push with `-u` flag if new branch
+## Push & PR Policy (CRITICAL)
+
+- **Never run `git push`** — leave pushing to the user
+- **Never create pull requests** (no `gh pr create`, no web UI)
+- Staging (`git add`) and committing (`git commit`) are fine; stop there
+- If the user explicitly asks to push or open a PR, confirm first, then proceed

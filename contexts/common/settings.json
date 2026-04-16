@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "description": "Common Claude Code hooks for smart-claude. Loaded into every context — session memory, commit quality, safety guardrails, auto-format. Merged with a context-specific settings.json at install time.",
+  "description": "Common Claude Code hooks for smart-claude. Loaded into every context — session memory, commit quality, safety guardrails. Language-specific format/typecheck hooks live in their own contexts (nestjs/frontend for JS/TS, fastapi for Python).",
   "hooks": {
     "SessionStart": [
       {
@@ -24,17 +24,6 @@
           }
         ],
         "description": "Block git operations that bypass hooks (--no-verify)"
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/pre-bash-git-push-reminder.js\"",
-            "timeout": 5000
-          }
-        ],
-        "description": "Remind to review diff and run tests before git push"
       },
       {
         "matcher": "Bash",
@@ -90,43 +79,6 @@
         "description": "Suggest strategic /compact at logical intervals (every COMPACT_THRESHOLD tool calls)"
       }
     ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/post-edit-format.js\"",
-            "timeout": 15000,
-            "async": true
-          }
-        ],
-        "description": "Auto-format JS/TS files with project's Biome or Prettier"
-      },
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/post-edit-typecheck.js\"",
-            "timeout": 20000,
-            "async": true
-          }
-        ],
-        "description": "Run tsc --noEmit / mypy on edited files for fast-fail type errors"
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'INPUT=$(cat); FILE=$(echo \"$INPUT\" | node -pe \"JSON.parse(require(\\\"fs\\\").readFileSync(0,\\\"utf8\\\")).tool_input.file_path || \\\"\\\"\" 2>/dev/null || echo \"\"); if echo \"$FILE\" | grep -qE \"\\.(ts|tsx|js|jsx)$\"; then if grep -q \"console\\.log\" \"$FILE\" 2>/dev/null; then echo \"[Hook] WARNING: console.log found in $FILE — remove before commit\" >&2; fi; fi'",
-            "timeout": 5000
-          }
-        ],
-        "description": "Warn about console.log statements in JS/TS files"
-      }
-    ],
     "PreCompact": [
       {
         "matcher": "*",
@@ -161,19 +113,7 @@
             "timeout": 30000
           }
         ],
-        "description": "Persist session summary to ~/.claude/session-data/ after each response"
-      },
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/cost-tracker.js\"",
-            "async": true,
-            "timeout": 10000
-          }
-        ],
-        "description": "Track token usage and estimated cost to ~/.claude/metrics/costs.jsonl"
+        "description": "Persist session summary to <project>/.claude/.storage/session-data/ after each response"
       },
       {
         "matcher": "*",

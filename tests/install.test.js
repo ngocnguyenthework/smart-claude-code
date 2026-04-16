@@ -195,3 +195,71 @@ test('existing files are skipped unless --force is set', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('--context common copies common-README.md and INTERNALS.md to .claude/docs/', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'common', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const docsDir = path.join(tmpDir, '.claude', 'docs');
+    assert.ok(fs.existsSync(path.join(docsDir, 'common-README.md')), 'common README must land in docs/');
+    assert.ok(fs.existsSync(path.join(docsDir, 'INTERNALS.md')), 'INTERNALS.md must land in docs/');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--context fastapi,devops copies per-context READMEs', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'fastapi,devops', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const docsDir = path.join(tmpDir, '.claude', 'docs');
+    assert.ok(fs.existsSync(path.join(docsDir, 'common-README.md')));
+    assert.ok(fs.existsSync(path.join(docsDir, 'fastapi-README.md')));
+    assert.ok(fs.existsSync(path.join(docsDir, 'devops-README.md')));
+    assert.ok(fs.existsSync(path.join(docsDir, 'INTERNALS.md')));
+    assert.ok(!fs.existsSync(path.join(docsDir, 'nestjs-README.md')), 'uninstalled context README must not land');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--dry-run lists docs in the plan output without writing them', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'nestjs', '--dir', tmpDir, '--dry-run']);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stdout, /\[docs\].+nestjs-README\.md/);
+    assert.match(result.stdout, /\[docs\].+INTERNALS\.md/);
+    assert.ok(!fs.existsSync(path.join(tmpDir, '.claude', 'docs')), 'dry-run must not create docs/');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--target cursor does not create .cursor/docs/', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'frontend', '--target', 'cursor', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.ok(!fs.existsSync(path.join(tmpDir, '.cursor', 'docs')), 'cursor target must not carry docs');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--force overwrites an existing INTERNALS.md', () => {
+  const tmpDir = mkTmp();
+  try {
+    runInstall(['--context', 'common', '--dir', tmpDir]);
+    const victim = path.join(tmpDir, '.claude', 'docs', 'INTERNALS.md');
+    fs.writeFileSync(victim, '# sentinel');
+    runInstall(['--context', 'common', '--dir', tmpDir]);
+    assert.equal(fs.readFileSync(victim, 'utf8'), '# sentinel', 'no --force should skip');
+    runInstall(['--context', 'common', '--dir', tmpDir, '--force']);
+    assert.notEqual(fs.readFileSync(victim, 'utf8'), '# sentinel', '--force must overwrite');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

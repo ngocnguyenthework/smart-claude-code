@@ -152,7 +152,16 @@ function loadJson(filePath) {
 function mergeHooks(baseHooks, addHooks) {
   const merged = { ...baseHooks };
   for (const event of Object.keys(addHooks || {})) {
-    merged[event] = [...(merged[event] || []), ...(addHooks[event] || [])];
+    const existing = merged[event] || [];
+    const seen = new Set(existing.map(e => JSON.stringify(e)));
+    const additions = [];
+    for (const entry of addHooks[event] || []) {
+      const key = JSON.stringify(entry);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      additions.push(entry);
+    }
+    merged[event] = [...existing, ...additions];
   }
   return merged;
 }
@@ -178,6 +187,7 @@ function mergeMcpServers(contexts) {
     const content = loadJson(file);
     if (content && content.mcpServers) Object.assign(merged.mcpServers, content.mcpServers);
   }
+  merged._contexts = contexts;
   return merged;
 }
 
@@ -258,6 +268,22 @@ function planScripts() {
   return scripts;
 }
 
+function planDocs(contexts, target) {
+  if (target === 'cursor') return [];
+  const docs = [];
+  for (const ctx of contexts) {
+    const readmeSrc = path.join(CONTEXTS_ROOT, ctx, 'README.md');
+    if (fs.existsSync(readmeSrc)) {
+      docs.push({ src: readmeSrc, relTarget: path.posix.join('docs', `${ctx}-README.md`) });
+    }
+  }
+  const internalsSrc = path.join(CONTEXTS_ROOT, 'common', 'INTERNALS.md');
+  if (fs.existsSync(internalsSrc)) {
+    docs.push({ src: internalsSrc, relTarget: path.posix.join('docs', 'INTERNALS.md') });
+  }
+  return docs;
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) { printHelp(); process.exit(0); }
@@ -308,6 +334,13 @@ function main() {
       counts[res] = (counts[res] || 0) + 1;
       if (args.dryRun) console.log(`  [scripts] → ${dst}`);
     }
+  }
+
+  for (const item of planDocs(contexts, args.target)) {
+    const dst = path.join(claudeDir, item.relTarget);
+    const res = copyFile(item.src, dst, args);
+    counts[res] = (counts[res] || 0) + 1;
+    if (args.dryRun) console.log(`  [docs] → ${dst}`);
   }
 
   console.log('');

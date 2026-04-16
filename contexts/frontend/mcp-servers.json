@@ -3,24 +3,24 @@
     "playwright": {
       "command": "npx",
       "args": ["-y", "@playwright/mcp", "--browser", "chrome"],
-      "description": "Browser automation and testing via Playwright — pairs with e2e-runner agent"
+      "description": "Browser automation and testing via Playwright — navigate, click, fill, screenshot, snapshot DOM. Use when: E2E testing UI flows, verifying frontend changes in a real browser, taking screenshots for visual QA, testing responsive layouts"
     },
     "browserbase": {
       "command": "npx",
       "args": ["-y", "@browserbasehq/mcp-server-browserbase"],
-      "env": { "BROWSERBASE_API_KEY": "YOUR_BROWSERBASE_KEY_HERE" },
-      "description": "Cloud browser sessions via Browserbase"
+      "env": { "BROWSERBASE_API_KEY": "${BROWSERBASE_API_KEY}" },
+      "description": "Cloud browser sessions via Browserbase — headless Chrome in the cloud with session recording. Use when: running E2E tests in CI without local Chrome, testing in isolated browser environments, capturing session replays for debugging"
     },
     "browser-use": {
       "type": "http",
       "url": "https://api.browser-use.com/mcp",
-      "headers": { "x-browser-use-api-key": "YOUR_BROWSER_USE_KEY_HERE" },
-      "description": "AI browser agent for web tasks"
+      "headers": { "x-browser-use-api-key": "${BROWSER_USE_API_KEY}" },
+      "description": "AI-powered browser agent — autonomous web navigation and data extraction. Use when: scraping dynamic SPAs, automating multi-step web workflows, extracting structured data from complex web UIs"
     },
     "magic": {
       "command": "npx",
       "args": ["-y", "@magicuidesign/mcp@latest"],
-      "description": "Magic UI component generation"
+      "description": "Magic UI component generation — animated React components with Tailwind + Framer Motion. Use when: building landing pages, adding animated sections, generating hero/feature/pricing/testimonial components with polished animations"
     }
   }
 }

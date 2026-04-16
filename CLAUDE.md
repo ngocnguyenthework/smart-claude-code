@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `smart-claude` is a context-isolated Claude Code toolkit. The source of truth lives under `contexts/<name>/` — each context (`common`, `fastapi`, `nestjs`, `devops`, `frontend`) is a self-contained bundle of agents, commands, rules, skills, session framings, a `settings.json`, and an `mcp-servers.json`.
 
-Users run `./install.sh --context <names>` in their target project; the installer copies `common + <selected>` into the target's `.claude/` (including `.claude/scripts/hooks/` + `.claude/scripts/lib/`) and writes a project-scope `.mcp.json` at the project root (per [Claude Code MCP docs](https://code.claude.com/docs/en/mcp#project-scope)).
+Users run `./install.sh --context <names>` in their target project; the installer copies `common + <selected>` into the target's `.claude/` (including `.claude/scripts/hooks/` + `.claude/scripts/lib/`), drops per-context workflow READMEs + `INTERNALS.md` under `.claude/docs/`, and writes a project-scope `.mcp.json` at the project root (per [Claude Code MCP docs](https://code.claude.com/docs/en/mcp#project-scope)).
 
 **Tech coverage**: NestJS · FastAPI · PostgreSQL · React · Next.js · Tailwind · shadcn/ui · Terraform · Terragrunt · Kubernetes · ArgoCD · Helm · Kustomize · AWS
 
@@ -31,13 +31,19 @@ Hook script paths use `${CLAUDE_PROJECT_DIR}` so they resolve correctly wherever
 ```
 contexts/
 ├── common/     always installed — session memory, safety, generalist agents
+│   ├── README.md       universal workflows → target's .claude/docs/common-README.md
+│   └── INTERNALS.md    hook/memory/guardrail internals → target's .claude/docs/INTERNALS.md
 ├── fastapi/    FastAPI + PostgreSQL (agent, rules, scaffold + shared DB tooling)
+│   └── README.md       10 backend scenarios → target's .claude/docs/fastapi-README.md
 ├── nestjs/     NestJS + PostgreSQL (agent, rules, scaffold + shared DB tooling)
+│   └── README.md       10 backend scenarios → target's .claude/docs/nestjs-README.md
 ├── devops/     Terraform + Terragrunt + K8s + ArgoCD + Helm + Kustomize + AWS
+│   └── README.md       10 infra scenarios → target's .claude/docs/devops-README.md
 └── frontend/   React + Next.js + Tailwind + shadcn/ui + E2E
+    └── README.md       8 UI scenarios → target's .claude/docs/frontend-README.md
 
 Each contexts/<name>/ follows the same shape:
-  agents/ commands/ rules/ skills/ contexts/ settings.json mcp-servers.json
+  agents/ commands/ rules/ skills/ contexts/ settings.json mcp-servers.json README.md
 
 scripts/
 ├── hooks/      Node hook scripts (copied into target's .claude/scripts/hooks/)
@@ -72,7 +78,7 @@ Each stack folder contains up to four files: `coding-style.md`, `patterns.md`, `
 Passive knowledge documents. Structured as: context → pattern → code example → when to apply.
 
 ### Contexts (`contexts/<ctx>/contexts/*.md`)
-Session framings / system prompts loaded by the `/switch-*` commands. Self-contained — no frontmatter.
+Session framings / system prompts loaded via shell aliases (e.g. `claude-nest`, `claude-py`) that pass them through `--append-system-prompt`. Self-contained — no frontmatter.
 
 ### Hooks (`contexts/<ctx>/settings.json`)
 Per-context hook registrations. The installer **merges** hook arrays per event across `common + <selected>` into the target's `.claude/settings.json`. Scripts land in the target's `.claude/scripts/hooks/*.js` (source: `scripts/hooks/*.js` in this repo) and are invoked with absolute paths via `${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/...`. The `run-with-flags.js` wrapper adds `SC_HOOK_PROFILE` and `SC_DISABLED_HOOKS` env-var gating. All scripts must `exit 0` on non-critical errors.
@@ -87,15 +93,17 @@ Per-context MCP registrations. The installer merges `mcpServers` keys across con
 - **`settings.json#/hooks`**: per event, arrays are **concatenated** in context order (`common` first) and written to `.claude/settings.json`.
 - **MCP `mcpServers`**: shallow-merged via `Object.assign` — last context wins on key collision. Written to `<root>/.mcp.json` (project scope).
 - **Hook scripts** (`scripts/hooks/`, `scripts/lib/`): copied into the target's `.claude/scripts/`. Internal `../lib/*` requires keep working because both dirs move together.
+- **Docs** (`contexts/<ctx>/README.md`, `contexts/common/INTERNALS.md`): copied into the target's `.claude/docs/` as `<ctx>-README.md` and `INTERNALS.md`. Skipped for `--target cursor` (rules-only by convention).
 
 ### Session Memory Pipeline (common)
 ```
-SessionStart -> session-start.js      (loads ~/.claude/session-data/ last 7 days)
+SessionStart -> session-start.js      (loads <project>/.claude/.storage/session-data/ last 7 days)
 Stop         -> session-end.js        (persists session summary)
-             -> cost-tracker.js       (appends to ~/.claude/metrics/costs.jsonl)
              -> evaluate-session.js   (signals /learn after >=10 messages)
 PreCompact   -> pre-compact.js        (marks compaction boundary in session file)
 ```
+
+Per-project state lives under `<target>/.claude/.storage/` (created on first run). The folder is project-scoped — add `.claude/.storage/` to the target's `.gitignore` if you don't want to commit session memory.
 
 ### Safety Guardrails (common + devops PreToolUse)
 - Blocks `git` with `--no-verify`

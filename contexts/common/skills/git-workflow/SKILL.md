@@ -18,22 +18,30 @@ origin: smartclaude
 
 ## Conventional Commits
 
+Use the one-line subject form only. **No body, no footer.**
+
 ```
-<type>(<scope>): <subject>
+<type>: <description>
+```
 
 Types: feat, fix, docs, style, refactor, test, chore, perf, ci, revert
-```
 
 **Good examples:**
 ```
-feat(auth): add OAuth2 login
-fix(api): retry requests on 503 with exponential backoff
-chore(deps): update dependencies
+feat: add OAuth2 login
+fix: retry requests on 503 with exponential backoff
+chore: update dependencies
 ```
 
-**Bad examples:** `fixed stuff`, `updates`, `WIP`
+**Bad examples:** `fixed stuff`, `updates`, `WIP`, or any multi-paragraph commit message.
 
-Rules: lowercase after colon, no trailing period, max 72 chars.
+Rules: lowercase after colon, no trailing period, max 72 chars, no body.
+
+## Push & PR Policy
+
+- **Never `git push`** — leave pushing to the user
+- **Never create pull requests** (no `gh pr create`, no web UI)
+- Only run push/PR commands when the user explicitly asks, and confirm first
 
 ## Merge vs Rebase
 
