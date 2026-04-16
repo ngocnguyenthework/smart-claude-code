@@ -1,7 +1,7 @@
 ---
 name: docker-patterns
 description: Docker Compose for local development, multi-stage Dockerfiles (dev vs prod stages), container networking, volume strategies, security hardening, and debugging commands.
-origin: smartclaude
+
 ---
 
 # Docker Patterns

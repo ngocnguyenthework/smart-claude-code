@@ -210,6 +210,34 @@ function writeJson(dst, obj, { dryRun, force }) {
   return 'written';
 }
 
+const GITIGNORE_ENTRY = '.claude/.storage/session-data/**';
+const GITIGNORE_HEADER = '# smart-claude: per-project session memory (not for commit)';
+const GITIGNORE_COVERING = new Set([
+  '.claude',
+  '.claude/',
+  '.claude/**',
+  '.claude/.storage',
+  '.claude/.storage/',
+  '.claude/.storage/**',
+  '.claude/.storage/session-data',
+  '.claude/.storage/session-data/',
+  '.claude/.storage/session-data/**',
+]);
+
+function ensureGitignore(projectDir, { dryRun }) {
+  const file = path.join(projectDir, '.gitignore');
+  const exists = fs.existsSync(file);
+  const existing = exists ? fs.readFileSync(file, 'utf8') : '';
+  const lines = existing.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const alreadyCovered = lines.some(l => !l.startsWith('#') && GITIGNORE_COVERING.has(l));
+  if (alreadyCovered) return 'skipped-exists';
+  if (dryRun) return exists ? 'would-append' : 'would-write';
+  const needsLeadingNewline = exists && existing.length > 0 && !existing.endsWith('\n');
+  const block = `${needsLeadingNewline ? '\n' : ''}${exists ? '\n' : ''}${GITIGNORE_HEADER}\n${GITIGNORE_ENTRY}\n`;
+  fs.writeFileSync(file, existing + block);
+  return exists ? 'appended' : 'written';
+}
+
 function cursorRelPath(kind, relFromKind) {
   if (kind !== 'rules') return null;
   const parts = relFromKind.split(path.sep);
@@ -259,11 +287,39 @@ function planCopies(contexts, target) {
   return copies;
 }
 
-function planScripts() {
+const ALWAYS_COPY_HOOKS = new Set(['run-with-flags.js']);
+const HOOK_SCRIPT_REFERENCE_RE = /scripts\/hooks\/([\w.-]+\.js)/g;
+
+function extractReferencedHookBasenames(mergedHooks) {
+  const referenced = new Set();
+  const visit = value => {
+    if (typeof value === 'string') {
+      HOOK_SCRIPT_REFERENCE_RE.lastIndex = 0;
+      let match;
+      while ((match = HOOK_SCRIPT_REFERENCE_RE.exec(value)) !== null) {
+        referenced.add(match[1]);
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (value && typeof value === 'object') {
+      for (const v of Object.values(value)) visit(v);
+    }
+  };
+  visit(mergedHooks);
+  return referenced;
+}
+
+function planScripts(referencedHookBasenames) {
+  const keep = new Set([...ALWAYS_COPY_HOOKS, ...(referencedHookBasenames || [])]);
   const scripts = [];
   for (const sub of ['hooks', 'lib']) {
     const srcDir = path.join(REPO_ROOT, 'scripts', sub);
     for (const abs of walkDir(srcDir)) {
+      if (sub === 'hooks' && !keep.has(path.basename(abs))) continue;
       const rel = path.relative(REPO_ROOT, abs);
       scripts.push({ src: abs, relTarget: rel });
     }
@@ -307,7 +363,15 @@ function main() {
   console.log(`[install] Mode:      ${args.dryRun ? 'dry-run' : 'apply'}`);
   console.log('');
 
-  const counts = { copied: 0, 'would-copy': 0, 'would-write': 0, written: 0, 'skipped-exists': 0 };
+  const counts = {
+    copied: 0,
+    'would-copy': 0,
+    'would-write': 0,
+    'would-append': 0,
+    written: 0,
+    appended: 0,
+    'skipped-exists': 0,
+  };
 
   for (const item of planCopies(contexts, args.target)) {
     const dst = path.join(claudeDir, item.relTarget);
@@ -317,8 +381,10 @@ function main() {
   }
 
   // Only write settings.json / .mcp.json for Claude target.
+  let referencedHookBasenames = new Set();
   if (args.target === 'claude') {
     const settings = mergeSettings(contexts);
+    referencedHookBasenames = extractReferencedHookBasenames(settings.hooks);
     const settingsDst = path.join(claudeDir, 'settings.json');
     const sRes = writeJson(settingsDst, settings, args);
     counts[sRes] = (counts[sRes] || 0) + 1;
@@ -331,7 +397,7 @@ function main() {
   }
 
   if (!args.skipScripts && args.target === 'claude') {
-    for (const item of planScripts()) {
+    for (const item of planScripts(referencedHookBasenames)) {
       const dst = path.join(claudeDir, item.relTarget);
       const res = copyFile(item.src, dst, args);
       counts[res] = (counts[res] || 0) + 1;
@@ -344,6 +410,14 @@ function main() {
     const res = copyFile(item.src, dst, args);
     counts[res] = (counts[res] || 0) + 1;
     if (args.dryRun) console.log(`  [docs] → ${dst}`);
+  }
+
+  if (args.target === 'claude') {
+    const res = ensureGitignore(args.dir, args);
+    counts[res] = (counts[res] || 0) + 1;
+    const gitignorePath = path.join(args.dir, '.gitignore');
+    if (args.dryRun) console.log(`  [gitignore] ${res} ${GITIGNORE_ENTRY} → ${gitignorePath}`);
+    else if (res !== 'skipped-exists') console.log(`[install] Gitignore: ${res} "${GITIGNORE_ENTRY}" → ${gitignorePath}`);
   }
 
   console.log('');

@@ -90,6 +90,56 @@ test('--context fastapi copies FastAPI agent but not NestJS agent', () => {
   }
 });
 
+test('--context fastapi copies only Python hook scripts, not JS/TS ones', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'fastapi', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const hooks = path.join(tmpDir, '.claude', 'scripts', 'hooks');
+    assert.ok(fs.existsSync(path.join(hooks, 'post-edit-format-python.js')), 'Python formatter hook must land');
+    assert.ok(fs.existsSync(path.join(hooks, 'post-edit-typecheck-python.js')), 'Python typecheck hook must land');
+    assert.ok(!fs.existsSync(path.join(hooks, 'post-edit-format.js')), 'JS/TS formatter hook must NOT land in fastapi-only install');
+    assert.ok(!fs.existsSync(path.join(hooks, 'post-edit-typecheck.js')), 'JS/TS typecheck hook must NOT land in fastapi-only install');
+    assert.ok(fs.existsSync(path.join(hooks, 'session-start.js')), 'common hook must always land');
+    assert.ok(fs.existsSync(path.join(hooks, 'run-with-flags.js')), 'wrapper must always land');
+    const lib = path.join(tmpDir, '.claude', 'scripts', 'lib');
+    assert.ok(fs.existsSync(path.join(lib, 'hook-flags.js')), 'lib/* always copied');
+    assert.ok(fs.existsSync(path.join(lib, 'resolve-formatter.js')), 'lib/* always copied');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--context frontend copies only JS/TS hook scripts, not Python ones', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'frontend', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const hooks = path.join(tmpDir, '.claude', 'scripts', 'hooks');
+    assert.ok(fs.existsSync(path.join(hooks, 'post-edit-format.js')), 'JS/TS formatter hook must land');
+    assert.ok(fs.existsSync(path.join(hooks, 'post-edit-typecheck.js')), 'JS/TS typecheck hook must land');
+    assert.ok(!fs.existsSync(path.join(hooks, 'post-edit-format-python.js')), 'Python formatter hook must NOT land in frontend-only install');
+    assert.ok(!fs.existsSync(path.join(hooks, 'post-edit-typecheck-python.js')), 'Python typecheck hook must NOT land in frontend-only install');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--context fastapi,nestjs copies both language-specific hook sets', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'fastapi,nestjs', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const hooks = path.join(tmpDir, '.claude', 'scripts', 'hooks');
+    assert.ok(fs.existsSync(path.join(hooks, 'post-edit-format.js')));
+    assert.ok(fs.existsSync(path.join(hooks, 'post-edit-format-python.js')));
+    assert.ok(fs.existsSync(path.join(hooks, 'post-edit-typecheck.js')));
+    assert.ok(fs.existsSync(path.join(hooks, 'post-edit-typecheck-python.js')));
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test('--context fastapi,nestjs dedupes shared files without --force collisions', () => {
   const tmpDir = mkTmp();
   try {
@@ -259,6 +309,89 @@ test('--force overwrites an existing INTERNALS.md', () => {
     assert.equal(fs.readFileSync(victim, 'utf8'), '# sentinel', 'no --force should skip');
     runInstall(['--context', 'common', '--dir', tmpDir, '--force']);
     assert.notEqual(fs.readFileSync(victim, 'utf8'), '# sentinel', '--force must overwrite');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('install creates .gitignore with session-data entry when missing', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'common', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const gitignorePath = path.join(tmpDir, '.gitignore');
+    assert.ok(fs.existsSync(gitignorePath), '.gitignore must be created');
+    const content = fs.readFileSync(gitignorePath, 'utf8');
+    assert.match(content, /\.claude\/\.storage\/session-data\//);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('install appends to an existing .gitignore without clobbering', () => {
+  const tmpDir = mkTmp();
+  try {
+    const gitignorePath = path.join(tmpDir, '.gitignore');
+    fs.writeFileSync(gitignorePath, 'node_modules/\n*.log\n');
+    const result = runInstall(['--context', 'common', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const content = fs.readFileSync(gitignorePath, 'utf8');
+    assert.match(content, /^node_modules\//m, 'pre-existing entry must be preserved');
+    assert.match(content, /^\*\.log$/m, 'pre-existing entry must be preserved');
+    assert.match(content, /\.claude\/\.storage\/session-data\//, 'new entry must be appended');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('install is idempotent for .gitignore on repeat runs', () => {
+  const tmpDir = mkTmp();
+  try {
+    runInstall(['--context', 'common', '--dir', tmpDir]);
+    const gitignorePath = path.join(tmpDir, '.gitignore');
+    const first = fs.readFileSync(gitignorePath, 'utf8');
+    runInstall(['--context', 'common', '--dir', tmpDir, '--force']);
+    const second = fs.readFileSync(gitignorePath, 'utf8');
+    assert.equal(first, second, 'second install must not duplicate the entry');
+    const matches = second.match(/\.claude\/\.storage\/session-data\//g) || [];
+    assert.equal(matches.length, 1, 'entry must appear exactly once');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('install skips .gitignore write when a covering pattern already exists', () => {
+  const tmpDir = mkTmp();
+  try {
+    const gitignorePath = path.join(tmpDir, '.gitignore');
+    fs.writeFileSync(gitignorePath, '.claude/**\n');
+    const result = runInstall(['--context', 'common', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const content = fs.readFileSync(gitignorePath, 'utf8');
+    assert.equal(content, '.claude/**\n', 'existing covering pattern means no changes');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--dry-run does not create or modify .gitignore', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'common', '--dir', tmpDir, '--dry-run']);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.ok(!fs.existsSync(path.join(tmpDir, '.gitignore')), 'dry-run must not write .gitignore');
+    assert.match(result.stdout, /\[gitignore\].+\.claude\/\.storage\/session-data/);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--target cursor does not create a .gitignore', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'frontend', '--target', 'cursor', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.ok(!fs.existsSync(path.join(tmpDir, '.gitignore')), 'cursor target must not touch .gitignore');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

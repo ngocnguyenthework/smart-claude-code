@@ -1,7 +1,7 @@
 ---
 name: deployment-patterns
 description: Deployment strategies (rolling/blue-green/canary), Docker multi-stage builds, GitHub Actions CI/CD pipeline, health checks, k8s probes, rollback, and production readiness checklist.
-origin: smartclaude
+
 ---
 
 # Deployment Patterns

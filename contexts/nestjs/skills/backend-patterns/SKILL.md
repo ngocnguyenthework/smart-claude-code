@@ -1,7 +1,7 @@
 ---
 name: backend-patterns
 description: Backend architecture patterns — repository pattern, service layer, caching (Redis/cache-aside), retry with exponential backoff, RBAC, background jobs, structured logging.
-origin: smartclaude
+
 ---
 
 # Backend Patterns

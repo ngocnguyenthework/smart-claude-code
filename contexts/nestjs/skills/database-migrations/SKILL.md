@@ -1,7 +1,7 @@
 ---
 name: database-migrations
 description: Database migration best practices — zero-downtime expand-contract pattern, safe column operations, concurrent indexes, batch data migrations, and ORM workflows (Prisma, Drizzle, Kysely, Django, golang-migrate).
-origin: smartclaude
+
 ---
 
 # Database Migration Patterns

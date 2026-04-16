@@ -1,7 +1,7 @@
 ---
 name: git-workflow
 description: Git workflow patterns — branching strategies, conventional commits, merge vs rebase, conflict resolution, release management.
-origin: smartclaude
+
 ---
 
 # Git Workflow Patterns
