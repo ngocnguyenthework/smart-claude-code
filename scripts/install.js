@@ -130,10 +130,13 @@ function resolveContexts(rawContexts) {
   return VALID_CONTEXTS.filter(c => unique.has(c));
 }
 
+const SKIP_FILES = new Set(['.gitkeep', '.DS_Store']);
+
 function walkDir(dir) {
   const results = [];
   if (!fs.existsSync(dir)) return results;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (SKIP_FILES.has(entry.name)) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) results.push(...walkDir(full));
     else if (entry.isFile()) results.push(full);
