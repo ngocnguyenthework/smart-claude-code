@@ -1,5 +1,7 @@
 # Common Patterns
 
+> **Production-readiness is the baseline, not a stretch goal.** Every feature planned here must pass the checklist in [production-readiness.md](./production-readiness.md) — file uploads use presigned URLs, emails enqueue, long work runs in background jobs, mutations are idempotent, etc. See [skills/production-patterns/SKILL.md](../../skills/production-patterns/SKILL.md) for the correct designs with code.
+
 ## Skeleton Projects
 
 When implementing new functionality:

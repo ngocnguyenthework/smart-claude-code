@@ -14,6 +14,7 @@
    - Use **planner** or **aws-architect** agent for implementation plan
    - Identify dependencies and risks
    - Break down into phases
+   - **Design for production on first pass** — see [production-readiness.md](./production-readiness.md) anti-pattern catalog and [skills/production-patterns/SKILL.md](../../skills/production-patterns/SKILL.md) for correct designs (presigned uploads, enqueued emails, cursor pagination, idempotency, etc.)
 
 2. **TDD Approach**
    - Use **tdd-guide** agent

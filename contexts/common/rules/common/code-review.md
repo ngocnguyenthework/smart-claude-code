@@ -21,6 +21,7 @@ Before marking code complete:
 - [ ] No console.log or debug statements
 - [ ] Tests exist for new functionality
 - [ ] Test coverage meets 80% minimum
+- [ ] Passes production-readiness checklist in [production-readiness.md](./production-readiness.md) — no architectural anti-patterns (server-proxied uploads, inline emails, N+1, offset pagination on large tables, missing idempotency, in-memory cache on multi-replica, etc.)
 
 ## Security Review Triggers
 

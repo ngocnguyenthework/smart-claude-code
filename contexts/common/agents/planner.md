@@ -83,6 +83,8 @@ Include a one-line rationale in the question body naming what drove the estimate
 
 **Every plan MUST produce production-ready code on the first pass.** Do NOT plan dev-only scaffolding with `TODO(prod)` markers deferring production concerns. If a step cannot ship to prod as written, the plan is not done — either complete it now or split it into its own explicit phase with concrete tasks.
 
+**Read first:** `.claude/rules/common/production-readiness.md` holds the full anti-pattern catalog (upload via server, sync email, N+1, etc.). `.claude/skills/production-patterns/SKILL.md` holds the correct designs with code. Reference both when planning — do not reinvent.
+
 Mandatory production concerns to bake into the plan from step 1:
 
 - **Environment-driven config**: Every value that differs between dev / staging / prod (DB URL, Redis URL, API keys, SMTP vs SES, S3 bucket, CORS origins, log levels, feature flags, OAuth client IDs, webhook URLs) goes through env vars loaded via the project's config layer (`ConfigService` / `pydantic-settings` / `process.env` + zod). Never hardcode per-env values in source, never write `if NODE_ENV === 'development'` branches that silently change prod behavior.
@@ -352,6 +354,7 @@ This keeps `/plan-run` per-phase dispatches free of mid-run interrogation — th
 
 ## Red Flags to Check
 
+**Code-level smells:**
 - Large functions (>50 lines)
 - Deep nesting (>4 levels)
 - Duplicated code
@@ -361,12 +364,39 @@ This keeps `/plan-run` per-phase dispatches free of mid-run interrogation — th
 - Plans with no testing strategy
 - Steps without clear file paths
 - Phases that cannot be delivered independently
-- **`TODO(prod)` / `FIXME(prod)` / "handle in prod later" markers** — reject and replan
+
+**Production-readiness smells (reject + replan):**
+- **`TODO(prod)` / `FIXME(prod)` / "handle in prod later" markers**
 - **Hardcoded environment-specific values** (URLs, keys, bucket names) instead of env-driven config
 - **Dev-only code paths** with no corresponding prod path planned in the same phase
 - **Missing secret-management plan** on any step that introduces credentials
 - **Missing observability plan** (logs / metrics / error reporting) for new code paths
 - **Destructive or non-backwards-compatible migrations** without an explicit rollout/rollback plan
+
+**Architectural anti-patterns (reject + replan — see `rules/common/production-readiness.md` for full catalog + `skills/production-patterns/` for correct designs):**
+- **File upload proxied through server** → use presigned PUT URL (client direct → S3)
+- **File download streamed through server** → use presigned GET URL or CDN signed URL
+- **`await sendEmail()` inline in HTTP handler** → enqueue to worker queue (SQS / BullMQ / Celery)
+- **Long-running work in request handler** (>1s target) → background job with idempotency + DLQ
+- **`setTimeout` / `setInterval` for scheduled work** → CronJob / EventBridge / delayed queue
+- **N+1 queries** (loop calling DB per row) → eager load / batch `IN` / explicit join
+- **`SELECT *` unbounded list endpoints** → cursor pagination + column allowlist + max-limit
+- **Offset pagination on large tables** → keyset (cursor) pagination
+- **No idempotency key on retryable mutations** (payments, emails, external API calls) → client-supplied `Idempotency-Key` + server dedupe table
+- **Missing index on filtered column** → add index in the same migration that introduces the filter
+- **In-memory cache on multi-replica service** → Redis / Memcached
+- **Cache key without user/tenant scope on per-user data** → include scope, avoid cross-user leak
+- **CORS `*` on credentialed endpoint** → exact-origin allowlist
+- **Role check on frontend only** → enforce on server; frontend UI is advisory
+- **No rate limit on public endpoint** → token bucket per user/IP
+- **Mutations on `GET`** → `POST` / `PUT` / `PATCH` / `DELETE`
+- **Exposing auto-increment DB IDs in URLs** → UUID / ULID / nanoid
+- **Single-AZ deployment for prod** → multi-AZ with LB health checks
+- **`latest` image tag in prod** → pinned digest / semver
+- **Missing timeout / retry / circuit breaker on external call** → bounded timeout + exponential backoff
+- **`LIKE '%q%'` for search on large tables** → `tsvector` + GIN / OpenSearch / vector DB
+
+A plan hitting any of these must be revised — do not hand off to the implementer. Reference the correct pattern from `skills/production-patterns/` in the revised plan so the implementer knows the target shape.
 
 ## Recommending the Next Agent (mandatory final step)
 

@@ -229,12 +229,39 @@ Every plan produced by `/plan` — and every implementation that follows — mus
 The main session enforces this at three points:
 
 1. **When dispatching the planner (step 2)** — append this line verbatim to the planner's instructions:
-   > "Production-readiness is non-negotiable. The plan must cover env-driven config, secret handling, observability, and rollout/rollback on first pass. Do not defer prod concerns with `TODO(prod)`. See planner's '2a. Production-Readiness' section."
+   > "Production-readiness is non-negotiable. The plan must cover env-driven config, secret handling, observability, rollout/rollback, and avoid architectural anti-patterns on first pass. Read `.claude/rules/common/production-readiness.md` (anti-pattern catalog) and `.claude/skills/production-patterns/SKILL.md` (correct designs) before emitting the plan. Do not defer prod concerns with `TODO(prod)`. See planner's '2a. Production-Readiness' section."
 
-2. **When presenting the plan to the user (step 3)** — before surfacing the approval gate, scan the plan body for red flags (`TODO(prod)`, `FIXME(prod)`, `handle in prod later`, `hardcoded` URLs/keys, dev-only branches with no prod counterpart, missing secret/observability plan on new code paths). If any appear, **do not present for approval** — loop back to the planner with the specific red flags quoted, and ask for a revised plan.
+2. **When presenting the plan to the user (step 3)** — before surfacing the approval gate, scan the plan body for red flags. If any appear, **do not present for approval** — loop back to the planner with the specific red flags quoted, and ask for a revised plan.
+
+   **String-level flags** (grep the plan body):
+   - `TODO(prod)`, `FIXME(prod)`, `handle in prod later`, `wire up prod`
+   - Hardcoded URLs / access keys / bucket names / connection strings
+   - Dev-only branches with no prod counterpart
+   - Missing secret / observability plan on new code paths
+
+   **Architectural anti-patterns** (semantic read — see `rules/common/production-readiness.md` for full catalog):
+   - Server proxies file upload / download (should use presigned URL direct client↔S3)
+   - Inline `await sendEmail` / SMS / push in request handler (should enqueue)
+   - Long-running work (>1s target) in HTTP handler (should be background job)
+   - `setTimeout` / `setInterval` for scheduled jobs (should use CronJob / EventBridge)
+   - N+1 query patterns (loop over rows making per-row DB calls)
+   - Offset pagination on large/growing tables (should be keyset cursor)
+   - Mutations without idempotency key on retryable paths (payments, outbound API calls)
+   - Missing index on newly-filtered column
+   - In-memory cache on multi-replica service (should be Redis/Memcached)
+   - `LIKE '%q%'` search on large tables (should be FTS / OpenSearch)
+   - CORS `*` on credentialed endpoints
+   - Frontend-only auth / role checks
+   - Public endpoints with no rate limiting
+   - Auto-increment DB ids in public URLs
+   - `latest` image tag for prod deployments
+   - External calls missing timeout / retry / circuit breaker
+   - Destructive migrations in one step (should be expand → backfill → contract)
+
+   When looping back, quote the specific offending lines and name the correct pattern from `skills/production-patterns/SKILL.md` so the planner knows the target shape.
 
 3. **When dispatching the implementer (step 4)** — append this line verbatim to the implementer's instructions:
-   > "Do not introduce `TODO(prod)` markers, hardcoded env-specific values, or dev-only branches without the prod counterpart. Load all env-specific values via the project's config layer. If any step in the plan is ambiguous about prod behavior, stop and ask — do not guess."
+   > "Do not introduce `TODO(prod)` markers, hardcoded env-specific values, or dev-only branches without the prod counterpart. Load all env-specific values via the project's config layer. Avoid architectural anti-patterns listed in `.claude/rules/common/production-readiness.md` — reach for the correct designs in `.claude/skills/production-patterns/SKILL.md` (presigned uploads, enqueued emails, idempotency keys, cursor pagination, etc.). If any step in the plan is ambiguous about prod behavior, stop and ask — do not guess."
 
 If the user explicitly asked for a throwaway spike ("just prototype this locally"), the planner records the trade-off in Risks & Mitigations and the orchestrator skips the red-flag scan — but only if the Overview says so explicitly.
 
