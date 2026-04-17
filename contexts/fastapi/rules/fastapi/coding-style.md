@@ -119,14 +119,32 @@ router.include_router(company.router, prefix="/companies", tags=["Company"])
 ```python
 # schemas/base.py
 from datetime import datetime
+from typing import Generic, TypeVar
 from uuid import UUID
 from pydantic import BaseModel as PydanticModel, ConfigDict
+
+T = TypeVar("T")
 
 class BaseResponseModel(PydanticModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+class OkResponse(PydanticModel):
+    ok: bool = True
+
+class OffsetPaginated(PydanticModel, Generic[T]):
+    model_config = ConfigDict(from_attributes=True)
+    items: list[T]
+    total: int
+    offset: int
+    limit: int
+
+class CursorPaginated(PydanticModel, Generic[T]):
+    model_config = ConfigDict(from_attributes=True)
+    items: list[T]
+    next_cursor: str | None = None
 ```
 
 ```python
@@ -144,6 +162,33 @@ class CompanyResponse(BaseResponseModel):
     external_id: int
     name: str
 ```
+
+## Shared Base Schemas (CRITICAL)
+
+**Never re-define common envelopes per entity.** Put generic shapes in `schemas/base.py` once, parametrize at use.
+
+Reuse rules:
+- List endpoints → `OffsetPaginated[XResponse]` or `CursorPaginated[XResponse]`. Never create `XListResponse` with duplicate `items/total/offset/limit` fields.
+- No-op / mutation confirm → `OkResponse`. Never create `XDeletedResponse`, `XAcceptedResponse`.
+- Entity response → inherit `BaseResponseModel` (gives `id/created_at/updated_at`). Never redeclare these.
+
+If common shape repeats across 2+ entities, **promote to `schemas/base.py`** as `Generic[T]` — don't duplicate.
+
+```python
+# api/v1/routers/company.py
+from schemas.base import OffsetPaginated
+from schemas.company import CompanyResponse
+
+@router.get("/", response_model=OffsetPaginated[CompanyResponse])
+async def list_companies(
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    _: ApiKey,
+) -> OffsetPaginated[CompanyResponse]:
+    return await company_service.list(limit=limit, offset=offset)
+```
+
+Service returns `OffsetPaginated[CompanyResponse]` directly — Pydantic `from_attributes=True` handle ORM→schema coerce on `items`.
 
 ## SQLAlchemy Models (2.0 style)
 

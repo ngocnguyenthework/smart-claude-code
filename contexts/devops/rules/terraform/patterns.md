@@ -6,6 +6,17 @@ paths:
 
 > Extends [common/patterns.md](../common/patterns.md) with Terraform-specific architectural patterns.
 
+## Shared Base First (CRITICAL)
+
+See [common/patterns.md → Shared Base First](../common/patterns.md#shared-base-first-critical).
+
+- **Reusable modules in `modules/`** — VPC, IAM role, RDS, EKS node group, ALB, S3+CF. Never copy-paste resources across envs.
+- **Root stacks compose modules** — `envs/{dev,staging,prod}/main.tf` only wire modules + env-specific vars.
+- **Shared locals / providers** — put in `modules/_shared/` or root-level `versions.tf` / `providers.tf`. Never re-declare provider block per stack.
+- **Tagging / naming convention** — single `module "tags"` (or `locals.common_tags`) referenced everywhere. Never hand-write `tags = { ... }` per resource.
+- **Backend + state isolation** — `terragrunt.hcl` inherits root config; per-env overrides only.
+- **Rule of 2**: second env using same resource shape → extract module.
+
 ## Module Composition
 
 Reusable modules encapsulate infrastructure components:

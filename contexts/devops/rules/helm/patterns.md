@@ -6,7 +6,15 @@ paths:
 ---
 # Helm Patterns
 
-> Common Helm authoring patterns. Extends [kubernetes/patterns.md](../kubernetes/patterns.md).
+> Common Helm authoring patterns. Extends [kubernetes/patterns.md](../kubernetes/patterns.md) and [common/patterns.md → Shared Base First](../common/patterns.md#shared-base-first-critical).
+
+## Shared Base First (CRITICAL)
+
+- **Library chart `common/`** for Deployment/Service/Ingress/HPA shapes reused across services. Never copy full templates per chart.
+- **Named templates in `_helpers.tpl`** — `common.labels`, `common.selectorLabels`, `common.resourceName`. Reuse via `{{ include "..." . }}`.
+- **`values.schema.json`** — one schema per chart; validate before install.
+- **Umbrella chart** for grouped-release apps; per-service values in `values-<env>.yaml`.
+- **Rule of 2**: second chart needing same template → move to library chart.
 
 ## Library Charts for Shared Primitives
 

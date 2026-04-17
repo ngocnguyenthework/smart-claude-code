@@ -110,7 +110,8 @@ class <Entity>Repository(BaseRepository[<Entity>]):
 # src/services/<entity>.py
 from fastapi import HTTPException, status
 from repositories.<entity> import <entity>_repository
-from schemas.<entity> import <Entity>Create, <Entity>Update
+from schemas.base import OffsetPaginated
+from schemas.<entity> import <Entity>Create, <Entity>Response, <Entity>Update
 
 class <Entity>Service:
     async def get_by_id(self, id):
@@ -122,20 +123,36 @@ class <Entity>Service:
     async def create(self, payload: <Entity>Create):
         return await <entity>_repository.create(payload.model_dump())
 
+    async def list(self, *, limit: int, offset: int) -> OffsetPaginated[<Entity>Response]:
+        items, total = await <entity>_repository.list_with_total(limit=limit, offset=offset)
+        return OffsetPaginated[<Entity>Response](
+            items=[<Entity>Response.model_validate(i) for i in items],
+            total=total, offset=offset, limit=limit,
+        )
+
 <entity>_service = <Entity>Service()
 ```
 
-**Router** (uses modern `Annotated[]` DI + the `ApiKey` type alias from `utils/auth.py`):
+**Router** (uses modern `Annotated[]` DI + `ApiKey` type alias from `utils/auth.py`. List endpoints MUST return `OffsetPaginated[XResponse]` from `schemas/base.py` — never redefine):
 ```python
 # src/api/v1/routers/<entity>.py
 from typing import Annotated
 from uuid import UUID
-from fastapi import APIRouter, Path, status
+from fastapi import APIRouter, Path, Query, status
+from schemas.base import OffsetPaginated
 from schemas.<entity> import <Entity>Create, <Entity>Response
 from services.<entity> import <entity>_service
 from utils.auth import ApiKey  # = Annotated[str, Depends(verify_api_key)]
 
 router = APIRouter()
+
+@router.get("/", response_model=OffsetPaginated[<Entity>Response])
+async def list_<entities>(
+    _: ApiKey,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> OffsetPaginated[<Entity>Response]:
+    return await <entity>_service.list(limit=limit, offset=offset)
 
 @router.get("/{id}", response_model=<Entity>Response)
 async def get_<entity>(

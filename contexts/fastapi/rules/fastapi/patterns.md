@@ -6,6 +6,32 @@ paths:
 
 > Extends [common/patterns.md](../common/patterns.md). These are the patterns actually used in this codebase — match them when adding new features.
 
+## Shared Base Inventory (CRITICAL)
+
+See [common/patterns.md → Shared Base First](../common/patterns.md#shared-base-first-critical). Applies to **every** layer — not only schemas. Before creating a new class/function/module, grep base first.
+
+| Kind | File | Base |
+|---|---|---|
+| SQLAlchemy model | `db/base.py` | `BaseModel` (timestamps + `deleted_at`), `UUIDBase`, `AutoIncrementBase` |
+| Repository | `repositories/base.py` | `BaseRepository[ModelType]` — `get_one/create/update/delete/paginate` |
+| Schema — entity response | `schemas/base.py` | `BaseResponseModel` (`id/created_at/updated_at` + `from_attributes=True`) |
+| Schema — list envelope | `schemas/base.py` | `OffsetPaginated[T]`, `CursorPaginated[T]` |
+| Schema — mutation confirm | `schemas/base.py` | `OkResponse` |
+| Schema — error | `schemas/base.py` | `ErrorResponse { detail: str }` (match FastAPI default) |
+| Session / txn | `utils/db_transaction.py` | `@transactional_session` |
+| Auth dep | `utils/auth.py` | `ApiKey = Annotated[str, Depends(verify_api_key)]` |
+| HTTP client | `core/http_client.py` | `HttpClient.instance()` singleton |
+| Exception handler | `core/exceptions.py` | `unhandled_exception_handler` |
+| Logging middleware | `middlewares/logging.py` | `RequestLoggingMiddleware` |
+| Settings | `core/config.py` | `Settings` with nested `BaseSettings` subclasses |
+
+### Rules
+
+- **Never redefine** any of the above per entity. Parametrize via generic.
+- **If common shape repeats**: promote to base file. Example — retry wrapper used in 2 services → `utils/retry.py`. Slug generator used in 2 schemas → `utils/slug.py`.
+- **Per-entity files only hold domain-specific** fields/queries/business logic. No CRUD boilerplate, no pagination re-implementation.
+- **Grep before adding**: `grep -r "class.*Paginated\|class.*Response\b" schemas/` — if a near match exists, extend it.
+
 ## Base Model + Soft Delete
 
 All models inherit from `BaseModel`. `UUIDBase` / `AutoIncrementBase` add the primary key.

@@ -9,6 +9,34 @@ paths:
 
 > Extends [common/patterns.md](../common/patterns.md) with NestJS-specific architectural patterns.
 
+## Shared Base Inventory (CRITICAL)
+
+See [common/patterns.md → Shared Base First](../common/patterns.md#shared-base-first-critical). Before creating any new class, grep `src/common/` / `src/shared/` first.
+
+| Kind | File | Base |
+|---|---|---|
+| Entity | `common/entities/base.entity.ts` | `BaseEntity` (id, createdAt, updatedAt, deletedAt) |
+| Repository | `common/repositories/base.repository.ts` | `BaseRepository<T>` (abstract) + `TypeOrmBaseRepository<T>` / `PrismaBaseRepository<T>` |
+| Service | `common/services/base.service.ts` | `BaseCrudService<T>` — CRUD on top of `BaseRepository<T>` |
+| DTO — list envelope | `common/dto/paginated.dto.ts` | `PaginatedDto<T>` (items, total, offset, limit) |
+| DTO — mutation confirm | `common/dto/ok.dto.ts` | `OkDto { ok: true }` |
+| DTO — query | `common/dto/pagination-query.dto.ts` | `PaginationQueryDto` (`@IsInt() limit/offset`) |
+| DTO — error | `common/dto/error-response.dto.ts` | `ErrorResponseDto` matching Nest exception filter |
+| Guard | `common/guards/` | `AuthGuard`, `RolesGuard`, `ApiKeyGuard` — shared, not per-module |
+| Decorator | `common/decorators/` | `@CurrentUser()`, `@Public()`, `@Roles()` |
+| Pipe | `common/pipes/` | `ParseIntPipe`, `ValidationPipe` configured globally |
+| Interceptor | `common/interceptors/` | `TransformInterceptor` (wraps response), `LoggingInterceptor` |
+| Exception filter | `common/filters/all-exceptions.filter.ts` | Single global filter |
+| Config | `common/config/` | Typed `ConfigService` — no `process.env` in feature code |
+
+### Rules
+
+- **Controllers return `PaginatedDto<XResponseDto>`** for list endpoints — never `XListDto { items[], total }`.
+- **Services extend `BaseCrudService<T>`** when CRUD — override only domain methods.
+- **Repositories extend `BaseRepository<T>`** — new repo = 0 boilerplate, just type param.
+- **DTOs extend base** — `XResponseDto extends BaseResponseDto` for `id/createdAt/updatedAt`.
+- **Guards / interceptors / pipes in `common/`** — never duplicate auth logic per module.
+
 ## Repository Pattern
 
 Abstract repository for swappable data access (TypeORM, Prisma, or test mock):

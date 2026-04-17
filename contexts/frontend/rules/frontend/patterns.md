@@ -8,6 +8,34 @@ paths:
 
 > Extends [common/patterns.md](../common/patterns.md) with React/Next.js-specific architectural patterns.
 
+## Shared Base Inventory (CRITICAL)
+
+See [common/patterns.md → Shared Base First](../common/patterns.md#shared-base-first-critical). Before creating any component / hook / util, grep `components/ui/`, `hooks/`, `lib/` first.
+
+| Kind | Location | Base |
+|---|---|---|
+| UI primitive | `components/ui/` (shadcn) | `Button`, `Input`, `Select`, `Dialog`, `Table`, `Card` — never fork |
+| Layout wrapper | `components/layout/` | `PageHeader`, `EmptyState`, `ErrorBoundary`, `LoadingState` |
+| Data table | `components/data-table/` | `DataTable<T>` (columns, sort, pagination, row actions) — one impl, generic |
+| Form field | `components/form/` | `FormField`, `FormError`, `FormLabel` — wrap RHF + shadcn once |
+| Pagination | `components/pagination/` | `<Pagination />` driven by URL state (`nuqs`) |
+| Hooks — data | `hooks/` | `usePaginatedQuery<T>`, `useDebouncedValue`, `useInfiniteList<T>` |
+| Hooks — UI | `hooks/` | `useMediaQuery`, `useClickOutside`, `useCopyToClipboard` |
+| API client | `lib/api/` | Single `fetcher`/`apiClient` — all fetch() go through it (auth, error, tracing) |
+| Types — API | `types/api.ts` | `Paginated<T>`, `ApiResponse<T>`, `ApiError`, `Result<T,E>` |
+| Types — domain | `types/` | shared across pages — never re-declare per page |
+| Schemas | `lib/schemas/` | Zod schemas shared between forms + API boundary |
+| Utils | `lib/utils/` | `cn`, `formatDate`, `formatCurrency`, `slugify` |
+
+### Rules
+
+- **List screens use `DataTable<T>` + `Paginated<T>` type** — never bespoke `<UserTable>` with hand-rolled pagination.
+- **Forms use `FormField` wrapper** — never re-wire label+error+input per form.
+- **All fetch through `lib/api/`** — never raw `fetch()` in components (no auth header drift, no scattered error handling).
+- **Empty / error / loading states use shared components** — `<EmptyState title="No users" />` not bespoke divs.
+- **Debounce / query-key / pagination logic in hooks** — never inline `useEffect(() => setTimeout(...))` per page.
+- **Zod schema owns the type**: `type User = z.infer<typeof UserSchema>` — one source of truth for form + API.
+
 ## State Management Strategy
 
 | Scope | Tool | When |
