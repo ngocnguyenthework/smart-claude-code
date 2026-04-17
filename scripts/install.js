@@ -347,6 +347,10 @@ function planDocs(contexts, target) {
   if (fs.existsSync(internalsSrc)) {
     docs.push({ src: internalsSrc, relTarget: path.posix.join('docs', 'INTERNALS.md') });
   }
+  const planWorkflowSrc = path.join(CONTEXTS_ROOT, 'common', 'PLAN-WORKFLOW.md');
+  if (fs.existsSync(planWorkflowSrc)) {
+    docs.push({ src: planWorkflowSrc, relTarget: path.posix.join('docs', 'PLAN-WORKFLOW.md') });
+  }
   return docs;
 }
 

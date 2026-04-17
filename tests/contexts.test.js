@@ -57,6 +57,27 @@ test('common context ships baseline generalist agents', () => {
   }
 });
 
+test('common context ships plan-workflow + utility commands', () => {
+  const commandsDir = path.join(CONTEXTS_ROOT, 'common', 'commands');
+  const expected = [
+    'plan.md',
+    'plans.md',
+    'plan-refine.md',
+    'plan-run.md',
+    'plan-phase.md',
+    'plan-phase-refine.md',
+    'do.md',
+    'explain.md',
+    'grill.md',
+  ];
+  for (const name of expected) {
+    assert.ok(
+      fs.existsSync(path.join(commandsDir, name)),
+      `contexts/common/commands/${name} missing`,
+    );
+  }
+});
+
 test('devops context ships GitOps/IaC stack coverage', () => {
   const rulesDir = path.join(CONTEXTS_ROOT, 'devops', 'rules');
   const expected = ['argocd', 'terragrunt', 'helm', 'kustomize', 'terraform', 'kubernetes', 'aws'];

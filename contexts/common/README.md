@@ -13,7 +13,7 @@ The baseline bundle. **Always installed** with every `--context` selection. Ship
 | Folder | What's in it |
 |---|---|
 | `agents/` | 8 generalist agents (architect, planner, code-reviewer, code-explorer, refactor-cleaner, performance-optimizer, doc-updater, docs-lookup) |
-| `commands/` | 7 workflow commands (`/plan`, `/code-review`, `/refactor-clean`, `/build-fix`, `/checkpoint`, `/learn`, `/prompt-optimize`) |
+| `commands/` | 13 workflow commands (`/plan`, `/plans`, `/plan-refine`, `/plan-run`, `/do`, `/explain`, `/grill`, `/code-review`, `/refactor-clean`, `/build-fix`, `/checkpoint`, `/learn`, `/prompt-optimize`) |
 | `rules/common/` | cross-cutting style + security + testing rules |
 | `skills/` | 19 shared skills (agentic engineering, verification loops, codebase onboarding, autonomous loops, deep research, etc.) |
 | `contexts/` | `dev.md`, `research.md`, `review.md` session framings |
@@ -68,13 +68,19 @@ Every feature follows this shape. Each phase has one clear output that becomes t
 
 ```
 1. claude-dev
-2. /plan "<one-line objective>"                    # planner agent proposes phases
-3. Confirm plan → implement phase by phase
-4. /code-review                                    # before opening PR
-5. /build-fix                                      # if TS/build errors
-6. Commit with conventional message
-7. /learn                                          # optional — extract reusable pattern
+2. /plan "<one-line objective>"                    # planner agent proposes phases (folder created)
+3. /plan-run <slug>                                # runs ONE phase — auto reviewer
+   ↳ post-phase gate: /explain · /grill · /clear+next · stop
+4. /clear                                          # free context between phases (recommended)
+5. /plan-run <slug>                                # next phase — fresh context window
+   ↳ repeat 4-5 until plan complete
+6. /code-review                                    # before opening PR
+7. /build-fix                                      # if TS/build errors
+8. Commit with conventional message
+9. /learn                                          # optional — extract reusable pattern
 ```
+
+**One phase per conversation (default).** Plan folder (`.claude/plans/<slug>/`) persists across `/clear`. Each phase file is self-contained — a fresh implementer reading `CONTEXT.md` + the phase file + project rules has everything needed. The trade is: lose conversation history, gain a full context window for the next implementer + reviewer pass. Skip `/clear` only when phases are tightly coupled (e.g., reviewing diffs across two phases live).
 
 **Effective prompt:**
 ```
@@ -325,6 +331,19 @@ Detects the build system and invokes the **stack-specific `build-error-resolver`
 ```
 
 **What it won't do:** suppress errors with `@ts-ignore`, `as any`, `# type: ignore`, or `# noqa` unless you explicitly allow it.
+
+---
+
+### `/explain` and `/grill`
+
+Companions to `/plan-run`. After a phase finishes, the post-phase gate offers both:
+
+- **`/explain <slug> [phase-NN]`** — code-explorer (Haiku) gives a 4-section walkthrough (Overview / Key files / Data flow / Gotchas), scoped to the phase's `files touched` from its Summary. Cap 400 words.
+- **`/grill <slug> [phase-NN]`** — Claude asks 3-4 pointed questions about invariants, edge cases, design choices, and acceptance criteria. You answer via `AskUserQuestion`; Claude grades and cites file:line.
+
+Both also accept ad-hoc targets: `/explain <path|symbol>` and `/grill <path|last>`.
+
+**Why both** — `/explain` teaches; `/grill` tests. Use `/grill` first to surface what you don't know, then `/explain` to fill the gap.
 
 ---
 

@@ -77,8 +77,13 @@ If **multiple** stack contexts are installed (monorepo), and the ask doesn't cle
 Via Task, with:
 - The user's ask verbatim
 - A line listing which stack implementers / reviewers are installed (so the planner can tailor its Recommended Next Agent to what's actually available)
+- A line enforcing the discovery budget: **"High-level discovery is capped at ONE `AskUserQuestion` call with ≤4 batched questions. If the objective + codebase + rules answer the question, skip the call entirely. Never ping-pong the user with follow-up questions during planning."**
 
-The planner returns a plan that ends with a **Recommended Next Agent** section naming one primary agent + alternatives.
+The planner runs silent discovery → (optional single batched question call) → **size classification** → emits the plan. The plan ends with a **Recommended Next Agent** section naming one primary agent + alternatives.
+
+**Size classification gate (run by planner at step 2a of its agent contract)**: when the planner estimates **>3 phases**, it pauses with `AskUserQuestion` offering Large (folder-per-phase, deep-dive later via `/plan-phase`) vs Small (flat phase files, plan fully now). 1-2 phases auto-inline, 3 phases auto-flat — no question asked. This counts as a *separate* `AskUserQuestion` call from the high-level discovery one — the discovery budget is 1 call × ≤4 questions, the size gate is independent because it depends on the shape of the plan that discovery produced.
+
+**Discovery rule enforcement (orchestrator):** If the planner returns control to the main session with a follow-up `AskUserQuestion` beyond the high-level discovery batch + the size gate, stop it — re-dispatch the planner with "bundle remaining questions into the phase files instead; you've used your discovery budget." Excess interrogation is a planner defect, not a user cost.
 
 ### 3. Present the plan and gate on approval
 
@@ -240,12 +245,92 @@ If the user explicitly asked for a throwaway spike ("just prototype this locally
 **You are always in the loop.** Every hand-off (planner → implementer, implementer → reviewer) waits for your confirmation before running. You can abort, swap agents, or re-plan at any gate.
 **Plan mode is supported but not required.** Running `/plan` outside plan mode uses `AskUserQuestion` for every gate (works identically). Running `/plan` inside plan mode upgrades the first gate to `ExitPlanMode` — you get Claude Code's native plan-approval UI with five approval modes. Enter plan mode with `Shift+Tab` before `/plan` if you want harness-level write-safety during the planning phase.
 **Production-readiness is enforced.** See the "Production-Readiness Mandate" section above — the orchestrator rejects plans with `TODO(prod)` markers and dev-only paths before ever showing them to you.
+**One phase per conversation (default).** `/plan-run`'s post-phase gate recommends `/clear` before the next phase. Plan folder (`CONTEXT.md` / `DISCUSSION.md` / `PLAN.md` / phase Summaries) bridges state across the reset. This keeps each implementer + reviewer pass operating in a fresh context window — critical for multi-phase plans where conversation history would otherwise grow unbounded. Skip the `/clear` only when phases are tightly coupled.
+
+## Plan Storage
+
+**Every plan is a folder.** No loose `.md` files in `.claude/plans/`. The folder separates the *why* (CONTEXT), *trade-offs* (DISCUSSION), and *how* (PLAN) so each can evolve without bloating the others.
+
+Phase storage has two shapes based on the size-classification gate (section "What the Main Session Does", step 2a of the planner):
+
+```
+# SMALL (1-2 phases inline, or 3 phases flat files)
+.claude/plans/<slug>/
+├── CONTEXT.md
+├── DISCUSSION.md
+├── PLAN.md                  # `## Steps` inline for 1-2 phases, `## Phases` table for 3
+├── phase-01-<name>.md       # only when 3 phases — flat files
+├── phase-02-<name>.md
+└── phase-03-<name>.md
+
+# LARGE (>3 phases AND user picked Large at size gate)
+.claude/plans/<slug>/
+├── CONTEXT.md
+├── DISCUSSION.md
+├── PLAN.md                  # `## Phases` table, `File` column points to folders
+├── phase-01-<name>/
+│   ├── GOAL.md              # stub at plan creation; status: planning
+│   ├── CONTEXT.md           # filled by /plan-phase
+│   ├── PLAN.md              # filled by /plan-phase — implementer brief
+│   └── DISCUSSION.md        # filled by /plan-phase, appended to by /plan-run + /plan-phase-refine
+└── phase-02-<name>/
+    └── ...
+```
+
+Top-level (both modes):
+- **CONTEXT.md** — why this change, constraints (performance / security / deadlines), existing code refs, stakeholders. Written once at plan creation; rarely updated.
+- **DISCUSSION.md** — append-only log of decisions and trade-offs. Each entry dated. `/plan-refine` appends here. Reviewer findings that change direction append here.
+- **PLAN.md** — the actionable file. Frontmatter (`slug`, `status`, `created`, `stack`, `agent`). Sections: Overview, Acceptance, Phases (table when multi-phase) OR Steps (inline when 1-2 phases), Next action.
+
+Small-mode per phase:
+- **phase-NN-<name>.md** — self-contained brief per phase. Full implementer input. Written by `/plan` in one pass.
+
+Large-mode per phase (folder):
+- **GOAL.md** — narrow phase goal + acceptance + deps. Stub emitted by `/plan` at creation (status: `planning`). Flipped to `planned` by `/plan-phase`, `wip` by `/plan-run`, `done` by `/plan-run` completion.
+- **CONTEXT.md** (inside folder) — phase-scoped constraints, reusable code refs, prior-phase outputs this phase depends on. Filled by `/plan-phase`.
+- **PLAN.md** (inside folder) — concrete steps, files touched, production checklist, verify, done-when. Filled by `/plan-phase`. This is what `/plan-run` reads. `## Summary` appended by `/plan-run` after execution.
+- **DISCUSSION.md** (inside folder) — phase-scoped decisions log. Started by `/plan-phase`, appended by `/plan-phase-refine` and `/plan-run`.
+
+`status` values: `planning` → `in-progress` → `done` (or `blocked` on CRITICAL reviewer findings).
+Phase `status` values: `planning` (large-mode stub) → `planned` (large-mode deep-planned, or small-mode at creation) → `wip` → `done` (or `blocked`).
+`wave:` field in phase frontmatter groups phases runnable in parallel once deps satisfied.
+Slug derivation: kebab-case of the objective (first 6 words, alphanumeric + hyphens).
+
+### Sibling commands
+
+| Command | Purpose |
+|---|---|
+| `/plans` | List all plan folders + status (both planning and execution progress) |
+| `/plan-refine <slug> [CONTEXT\|DISCUSSION\|PLAN\|phase-NN]` | Re-dispatch planner scoped to top-level file, or to one flat phase file (small mode). For large-mode phase folders, delegates to `/plan-phase-refine`. |
+| `/plan-phase <slug> phase-NN` | **Large mode only.** Deep-dive planner for one phase — fills CONTEXT / PLAN / DISCUSSION inside phase folder. Required before `/plan-run` can execute a large-mode phase. |
+| `/plan-phase-refine <slug> phase-NN [GOAL\|CONTEXT\|PLAN\|DISCUSSION]` | **Large mode only.** Refine one file inside a phase folder. |
+| `/plan-run <slug> [phase-NN]` | Implementer + auto-reviewer; updates PLAN.md phase table + appends Summary (to flat file or folder's `PLAN.md`); offers `/explain` and `/grill` at post-phase gate. Halts on large-mode stub folders — prompts `/plan-phase` first. |
+| `/explain <slug> [phase-NN]` | Walkthrough of files touched by a done phase (reads phase Summary) |
+| `/grill <slug> [phase-NN]` | Quiz on a done phase — pressure-tests mental model against acceptance criteria |
+
+The orchestrator updates `PLAN.md` phase-table status **after every gate** (via `Edit`), so `/plans` always reflects truth. Decisions append to `DISCUSSION.md`.
+
+### Inbox scratchpad
+
+`.claude/plans/_inbox.md` — single flat file for not-yet-planned ideas. Claude may append when the user mentions an idea out-of-scope for the current plan. Review manually; `/plan` reads it when creating a new plan.
+
+### Fast-path (no plan folder)
+
+For 1-3 file tasks where planning overhead exceeds the work, use `/do <objective>` — dispatches implementer + reviewer directly, no plan folder. See `do.md`.
 
 ## Related Commands
 
-- `/build-fix` — shortcut when you know the task is *only* fixing a red build (skips planning).
+- `/do <objective>` — fast path for small tasks (no plan folder).
+- `/plans` — list existing plans with planning + execution progress.
+- `/plan-refine <slug> [phase-NN]` — refine a plan in place (top-level files, or flat phase file in small mode).
+- `/plan-phase <slug> phase-NN` — deep-dive planner for one phase of a large plan (folder mode).
+- `/plan-phase-refine <slug> phase-NN [GOAL|CONTEXT|PLAN|DISCUSSION]` — refine one file inside a phase folder.
+- `/plan-run <slug> [phase-NN]` — execute a phase with auto-reviewer.
+- `/explain <slug> [phase-NN]` — concise structural walkthrough of what a phase shipped (also accepts ad-hoc `<path>` / `<symbol>`).
+- `/grill <slug> [phase-NN]` — quiz yourself on what a phase shipped (also accepts ad-hoc `<path>`). Offered automatically at `/plan-run`'s post-phase gate.
+- `/build-fix` — shortcut when the task is *only* fixing a red build.
 - `/code-review` — review any uncommitted diff without a plan.
-- `/refactor-clean` — shortcut when you know the task is *only* dead-code cleanup (skips planning).
+- `/refactor-clean` — shortcut when the task is *only* dead-code cleanup.
 - `/checkpoint` — save state between phases on long plans.
 
 If you're not sure which shortcut fits, just run `/plan` — the orchestrator routes for you.

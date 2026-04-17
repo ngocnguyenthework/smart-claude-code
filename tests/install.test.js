@@ -243,7 +243,7 @@ test('existing files are skipped unless --force is set', () => {
   }
 });
 
-test('--context common copies common-README.md and INTERNALS.md to .claude/docs/', () => {
+test('--context common copies common-README.md, INTERNALS.md, and PLAN-WORKFLOW.md to .claude/docs/', () => {
   const tmpDir = mkTmp();
   try {
     const result = runInstall(['--context', 'common', '--dir', tmpDir]);
@@ -251,6 +251,7 @@ test('--context common copies common-README.md and INTERNALS.md to .claude/docs/
     const docsDir = path.join(tmpDir, '.claude', 'docs');
     assert.ok(fs.existsSync(path.join(docsDir, 'common-README.md')), 'common README must land in docs/');
     assert.ok(fs.existsSync(path.join(docsDir, 'INTERNALS.md')), 'INTERNALS.md must land in docs/');
+    assert.ok(fs.existsSync(path.join(docsDir, 'PLAN-WORKFLOW.md')), 'PLAN-WORKFLOW.md must land in docs/');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
