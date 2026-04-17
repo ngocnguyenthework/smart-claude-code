@@ -70,6 +70,17 @@
         "description": "Pre-commit quality gate: secrets block, console.log warn, conventional commit check"
       },
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/install-guard.js\"",
+            "timeout": 5000
+          }
+        ],
+        "description": "Warn on package install commands without the dependency-approval workflow (rules/common/dependency-approval.md)"
+      },
+      {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
           {

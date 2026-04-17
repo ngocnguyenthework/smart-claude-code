@@ -97,6 +97,28 @@ Mandatory production concerns to bake into the plan from step 1:
 
 If the user explicitly asks for a throwaway prototype or spike, confirm the trade-off in the Overview and record it under Risks & Mitigations ("prod hardening deferred — see Phase N"). Don't silently defer prod concerns.
 
+### 3b. Dependency Footprint (CRITICAL — never silently adopt)
+
+**Read first:** `.claude/rules/common/dependency-approval.md` (policy) and `.claude/skills/dependency-selection/SKILL.md` (workflow).
+
+Every plan MUST list every **new** library, package, framework, MCP server, Docker base image, or external service the implementation will introduce. Never leave "we'll pull in some HTTP client" implicit. Never silently assume `axios` / `lodash` / `requests` is allowed — the user approves each addition explicitly.
+
+Process for the planner:
+
+1. **Existing-dep scan** — grep the manifest (`package.json`, `pyproject.toml`, `go.mod`, `Gemfile`, `Cargo.toml`, `Chart.yaml`) for libraries that already cover the needed capability. If one exists, reuse it.
+2. **Stdlib check** — can the runtime's standard library cover it in <50 lines? (Node: `fetch`, `crypto.randomUUID`, `Intl`, `structuredClone`. Python: `pathlib`, `dataclasses`, `datetime`+`zoneinfo`. Go: most of `net/http`, `encoding/json`, `time`.)
+3. **Candidate comparison** — if a new dep is genuinely needed, evaluate **at least 2 alternatives + stdlib/custom baseline** on the rubric in `dependency-selection` (fit, maintenance, popularity, license, size, security).
+4. **Emit the `## Dependencies` section** in `PLAN.md` (shape below in Plan Format). Orchestrator gates approval on this section before dispatching the implementer.
+
+If the plan introduces **zero** new deps, still include the section with `_None — reuses existing stack._` so the user sees the planner checked. A missing `## Dependencies` section is a planner defect — orchestrator will loop back.
+
+**Anti-patterns the planner must refuse:**
+
+- Plan mentions "install X" without alternatives comparison → red flag, revise
+- Plan duplicates an existing-in-manifest library → revise to reuse
+- Plan adds a >10MB SDK for a 3-call integration when a 20-line HTTP client would do → challenge in Risks & Mitigations
+- Plan adds a dep from a maintainer with <1k stars / <100k weekly DL without a specific reason → revise or justify
+
 ### 4. Step Breakdown
 Create detailed steps with:
 - Clear, specific actions
@@ -171,6 +193,27 @@ agent: <implementer-name>
 ## Acceptance
 - [ ] [criterion 1]
 - [ ] [criterion 2]
+
+## Dependencies
+<!-- Every NEW runtime/dev package, MCP server, container image, or SaaS the plan introduces. -->
+<!-- If zero new deps, write: _None — reuses existing stack._ -->
+
+### New packages
+| Package | Version | Kind | License | Weekly DL | Last release | Size (+transitives) | Why |
+|---|---|---|---|---|---|---|---|
+| `dayjs` | 1.11.10 | runtime | MIT | 18M | 2 wk ago | 15 kB (+2) | parse+format report dates |
+| `@types/dayjs` | 1.11.10 | dev | MIT | — | — | — | TS types for runtime pkg above |
+
+### Alternatives considered (one-line each)
+- `luxon` — rejected: 72 kB vs 15 kB, we don't need timezone math
+- stdlib `Intl.DateTimeFormat` — rejected: 40+ LoC of manual offset handling, brittle
+
+### Existing-dep reuse check
+- [ ] Grepped `package.json` / `pyproject.toml` — no existing library covers this
+- [ ] Stdlib check — stdlib path considered above
+
+### Approval
+Orchestrator surfaces `AskUserQuestion` per package (or one batched question for small groups) before dispatching the implementer. Implementer MUST NOT install unapproved deps.
 
 ## Phases
 | # | Title | File | Depends | Status | Wave |
@@ -372,6 +415,15 @@ This keeps `/plan-run` per-phase dispatches free of mid-run interrogation — th
 - **Missing secret-management plan** on any step that introduces credentials
 - **Missing observability plan** (logs / metrics / error reporting) for new code paths
 - **Destructive or non-backwards-compatible migrations** without an explicit rollout/rollback plan
+
+**Dependency smells (reject + replan — see `rules/common/dependency-approval.md` + `skills/dependency-selection/`):**
+- **Missing `## Dependencies` section** in `PLAN.md` when the plan could plausibly introduce any new package
+- **"Install X" mentioned** with no alternatives comparison or existing-dep check
+- **New dep duplicates a library already in the manifest** (e.g. plan adds `axios` when `got` is already used)
+- **Stdlib-feasible capability** (UUID, debounce, deep clone, simple HTTP) handed to a library with >0 transitives
+- **Dep from an abandoned maintainer** (last release >2y on npm/PyPI, <100 wk DL, <50 stars) with no specific justification
+- **Heavy SDK (>10MB) for a 3-call integration** where a thin HTTP client would suffice
+- **License incompatibility** (GPL/AGPL/SSPL pulled into proprietary code, etc.)
 
 **Architectural anti-patterns (reject + replan — see `rules/common/production-readiness.md` for full catalog + `skills/production-patterns/` for correct designs):**
 - **File upload proxied through server** → use presigned PUT URL (client direct → S3)

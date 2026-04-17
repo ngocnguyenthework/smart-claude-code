@@ -9,6 +9,7 @@
    - Check library docs (use context7 MCP for framework-specific docs)
    - Search package registries before writing utility code
    - Prefer adopting proven approaches over writing net-new code
+   - **Never silently add a dependency.** Any new library / package / MCP / container image / SaaS requires the approval workflow in [dependency-approval.md](./dependency-approval.md) — explain the need, compare 2+ alternatives + stdlib baseline (see [skills/dependency-selection/SKILL.md](../../skills/dependency-selection/SKILL.md)), then call `AskUserQuestion` with the comparison. Pin exact versions on approval.
 
 1. **Plan First**
    - Use **planner** or **aws-architect** agent for implementation plan

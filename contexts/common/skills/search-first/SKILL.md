@@ -182,3 +182,11 @@ Result: 1 package + 1 schema file, no custom validation logic
 - **Ignoring MCP**: Not checking if an MCP server already provides the capability
 - **Over-customizing**: Wrapping a library so heavily it loses its benefits
 - **Dependency bloat**: Installing a massive package for one small feature
+- **Silent install**: Running `npm install X` / `pip install X` without the approval workflow — see [rules/common/dependency-approval.md](../../rules/common/dependency-approval.md) + [skills/dependency-selection/SKILL.md](../dependency-selection/SKILL.md)
+
+## Relationship to Dependency Selection
+
+`search-first` is the **broad** "before I code, what already exists?" skill — it covers MCP servers, skills, skeletons, and libraries together. `dependency-selection` is the **narrow** approval-gate workflow specifically for adding a package to the dependency graph. The two compose:
+
+1. `search-first` answers *"does a solution already exist?"* (MCP / skill / library / skeleton)
+2. If the answer points to a new library, `dependency-selection` takes over to run the rubric + approval gate before that library lands in the manifest.

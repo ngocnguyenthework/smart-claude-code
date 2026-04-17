@@ -110,6 +110,35 @@ options:
 
 Do **not** accept free-text "yes" / "proceed" as a substitute for these tools — always surface the structured gate so the user sees the choices.
 
+### 3a. Dependency Approval Gate (CRITICAL — before implementer dispatch)
+
+After plan approval (step 3) and **before** dispatching the implementer (step 4), the orchestrator parses the approved `PLAN.md` for the `## Dependencies` section.
+
+**Enforcement:**
+
+1. **Missing section → reject + loop back.** If `PLAN.md` has no `## Dependencies` section at all, re-dispatch the planner with the message: *"Missing `## Dependencies` section — per `rules/common/dependency-approval.md`, every plan must declare new packages (or state `_None — reuses existing stack._` explicitly)."* Do not proceed to step 4.
+
+2. **Section exists and says `_None — reuses existing stack._`** → skip the gate, proceed to step 4.
+
+3. **Section lists new packages → surface approval gate(s).** For each entry under `### New packages`, call `AskUserQuestion`:
+
+   ```
+   question: "Add <package>@<version> as a <kind> dependency?"
+   options:
+     - "Approve — install <package>@<version>"
+     - "Use different option (I'll name it)"
+     - "Build custom instead (no new dep)"
+     - "Skip this capability"
+   ```
+
+   **Batch rule:** if the plan introduces ≤3 tightly-coupled packages (e.g. a runtime lib + its `@types/*` + one test helper), use a **single** `AskUserQuestion` listing them together as one bundled approval. For >3 deps or deps serving separate capabilities, ask per-package.
+
+4. **On any "Use different option" / "Build custom" / "Skip"** → re-dispatch the planner with the user's choice appended. Revised plan re-enters step 3. Do not patch the plan inline.
+
+5. **On "Approve"** → record the approval in the plan's `DISCUSSION.md` (append an entry: date, packages approved, exact versions). Then proceed to step 4.
+
+6. **Anti-circumvention:** When dispatching the implementer in step 4, append this line verbatim to the implementer's instructions: *"The `## Dependencies` section of `PLAN.md` is the exhaustive list of packages you may install, at the exact pinned versions shown. If you find you need a package not listed, STOP and surface a fresh `AskUserQuestion` — never `npm install` / `pip install` silently. The install-guard hook will warn on every install; that warning is not suppression, it is a reminder the user approval must already exist."*
+
 ### 4. Dispatch the chosen agent (Sonnet)
 
 Via Task, with:
@@ -228,8 +257,10 @@ Every plan produced by `/plan` — and every implementation that follows — mus
 
 The main session enforces this at three points:
 
-1. **When dispatching the planner (step 2)** — append this line verbatim to the planner's instructions:
-   > "Production-readiness is non-negotiable. The plan must cover env-driven config, secret handling, observability, rollout/rollback, and avoid architectural anti-patterns on first pass. Read `.claude/rules/common/production-readiness.md` (anti-pattern catalog) and `.claude/skills/production-patterns/SKILL.md` (correct designs) before emitting the plan. Do not defer prod concerns with `TODO(prod)`. See planner's '2a. Production-Readiness' section."
+1. **When dispatching the planner (step 2)** — append these two lines verbatim to the planner's instructions:
+   > "Production-readiness is non-negotiable. The plan must cover env-driven config, secret handling, observability, rollout/rollback, and avoid architectural anti-patterns on first pass. Read `.claude/rules/common/production-readiness.md` (anti-pattern catalog) and `.claude/skills/production-patterns/SKILL.md` (correct designs) before emitting the plan. Do not defer prod concerns with `TODO(prod)`. See planner's '3a. Production-Readiness' section."
+   >
+   > "Dependency approval is non-negotiable. The plan MUST include a `## Dependencies` section listing every new package / MCP / container image / SaaS the implementation will introduce — or explicitly state `_None — reuses existing stack._`. For each new dep, list 2+ alternatives + stdlib baseline with the rubric from `.claude/skills/dependency-selection/SKILL.md`. Read `.claude/rules/common/dependency-approval.md` before planning. See planner's '3b. Dependency Footprint' section."
 
 2. **When presenting the plan to the user (step 3)** — before surfacing the approval gate, scan the plan body for red flags. If any appear, **do not present for approval** — loop back to the planner with the specific red flags quoted, and ask for a revised plan.
 
@@ -238,6 +269,14 @@ The main session enforces this at three points:
    - Hardcoded URLs / access keys / bucket names / connection strings
    - Dev-only branches with no prod counterpart
    - Missing secret / observability plan on new code paths
+
+   **Dependency flags** (semantic read — see `rules/common/dependency-approval.md`):
+   - `PLAN.md` missing a `## Dependencies` section entirely
+   - Plan body names a package (`npm install x`, `add axios`, etc.) but the section doesn't list it
+   - `## Dependencies` lists a package with no alternatives-considered row
+   - Plan adds a package that duplicates one already in the target's manifest
+   - Plan introduces a stdlib-feasible capability (UUID, debounce, deep clone) via a library with >0 transitives
+   - Pinned version uses `^` / `~` / `latest` instead of an exact version
 
    **Architectural anti-patterns** (semantic read — see `rules/common/production-readiness.md` for full catalog):
    - Server proxies file upload / download (should use presigned URL direct client↔S3)
@@ -260,8 +299,10 @@ The main session enforces this at three points:
 
    When looping back, quote the specific offending lines and name the correct pattern from `skills/production-patterns/SKILL.md` so the planner knows the target shape.
 
-3. **When dispatching the implementer (step 4)** — append this line verbatim to the implementer's instructions:
+3. **When dispatching the implementer (step 4)** — append these two lines verbatim to the implementer's instructions:
    > "Do not introduce `TODO(prod)` markers, hardcoded env-specific values, or dev-only branches without the prod counterpart. Load all env-specific values via the project's config layer. Avoid architectural anti-patterns listed in `.claude/rules/common/production-readiness.md` — reach for the correct designs in `.claude/skills/production-patterns/SKILL.md` (presigned uploads, enqueued emails, idempotency keys, cursor pagination, etc.). If any step in the plan is ambiguous about prod behavior, stop and ask — do not guess."
+   >
+   > "The `## Dependencies` section of `PLAN.md` is the exhaustive list of packages you may install, at the exact pinned versions shown. Do NOT silently `npm install` / `pip install` / `go get` anything else. If you find you need a package not listed, STOP, run the dependency-approval workflow from `.claude/rules/common/dependency-approval.md` + `.claude/skills/dependency-selection/SKILL.md`, and surface a fresh `AskUserQuestion` before installing."
 
 If the user explicitly asked for a throwaway spike ("just prototype this locally"), the planner records the trade-off in Risks & Mitigations and the orchestrator skips the red-flag scan — but only if the Overview says so explicitly.
 

@@ -1,6 +1,8 @@
 # Common Patterns
 
 > **Production-readiness is the baseline, not a stretch goal.** Every feature planned here must pass the checklist in [production-readiness.md](./production-readiness.md) — file uploads use presigned URLs, emails enqueue, long work runs in background jobs, mutations are idempotent, etc. See [skills/production-patterns/SKILL.md](../../skills/production-patterns/SKILL.md) for the correct designs with code.
+>
+> **Dependency approval is the baseline for adopting libraries.** Before adding any new package / MCP / container image / SaaS, run the workflow in [dependency-approval.md](./dependency-approval.md) + [skills/dependency-selection/SKILL.md](../../skills/dependency-selection/SKILL.md): stdlib check, existing-dep reuse scan, 2+ alternatives compared, `AskUserQuestion` gate, pinned exact version on approval.
 
 ## Skeleton Projects
 
