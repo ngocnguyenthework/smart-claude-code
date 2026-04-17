@@ -109,6 +109,73 @@ router.include_router(auth.router, prefix="/auth", tags=["Auth"])
 router.include_router(company.router, prefix="/companies", tags=["Company"])
 ```
 
+## Service / Repository File Organization (CRITICAL)
+
+**Never declare module-level helpers or constants on top of a service / repository file.** Only imports, a `log = logging.getLogger(__name__)` line, the class, and the singleton assignment at the bottom belong at module scope.
+
+Two valid homes for helpers and constants:
+
+1. **Bound to this service only** → declare inside the class as `_private_method` (or `@staticmethod` / `@classmethod` if no `self`) / class-level constant (`_MAX_TEXT_BYTES: ClassVar[int] = ...`). Keeps locality, avoids import-time pollution, and makes the boundary explicit.
+2. **Shared across services** → extract to `utils/<topic>.py` or `common/<topic>.py` and import. Promote on second use — grep first (see [patterns.md → Shared Base Inventory](./patterns.md#shared-base-inventory-critical)).
+
+```python
+# WRONG — module-level helpers + constants above class
+_MAX_TEXT_BYTES = 2 * 1024 * 1024
+_REDACTED_PARAMS = frozenset({"X-Amz-Signature", ...})
+
+def _redact_presigned_url(url: str) -> str: ...
+def _to_response(file: KnowledgeFile) -> KnowledgeFileResponse: ...
+def _ext_from_name(name: str) -> str: ...
+
+class KnowledgeFileService:
+    async def presign_upload(self, ...): ...
+
+knowledge_file_service = KnowledgeFileService()
+```
+
+```python
+# CORRECT — bound helpers live inside the class
+from typing import ClassVar
+
+class KnowledgeFileService:
+    _MAX_TEXT_BYTES: ClassVar[int] = 2 * 1024 * 1024
+    _REDACTED_PARAMS: ClassVar[frozenset[str]] = frozenset({"X-Amz-Signature", ...})
+
+    @staticmethod
+    def _redact_presigned_url(url: str) -> str: ...
+
+    @staticmethod
+    def _to_response(file: KnowledgeFile) -> KnowledgeFileResponse: ...
+
+    @staticmethod
+    def _ext_from_name(name: str) -> str: ...
+
+    async def presign_upload(self, ...):
+        ...
+        log.info("... url=%s", self._redact_presigned_url(policy["url"]))
+
+knowledge_file_service = KnowledgeFileService()
+```
+
+```python
+# CORRECT — shared across services → move to utils/
+# utils/url_redact.py
+_REDACTED_PARAMS: frozenset[str] = frozenset({"X-Amz-Signature", ...})
+
+def redact_presigned_url(url: str) -> str: ...
+```
+
+**Same rule applies to every layer**: routers, services, repositories, middlewares. Module top holds imports + `log` + the class/router + singleton — nothing else. If a module needs 3+ private helpers to function, that's a signal they belong in a class or a utils module, not floating at file top.
+
+**Allowed at module top** (narrow list):
+- `import` statements
+- `log = logging.getLogger(__name__)`
+- `router = APIRouter()` (router files only)
+- `_payload_adapter = TypeAdapter(list[X])` — Pydantic adapters, cached per docs (see [Typing → `TypeAdapter`](#typing))
+- `<entity>_service = XService()` / `<entity>_repository = XRepository(Model)` singleton at the **bottom**
+
+Everything else — helper functions, magic-number constants, redaction tables, mapping dicts — goes **inside the class** (if class-specific) or in `utils/` / `common/enums/` / `common/constants/` (if shared).
+
 ## Pydantic Schemas (v2)
 
 - All response models inherit `BaseResponseModel` (provides `id`, `created_at`, `updated_at` + `ConfigDict(from_attributes=True)`).

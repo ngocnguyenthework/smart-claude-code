@@ -1,228 +1,212 @@
 ---
-description: Orchestrator — plan, then delegate implementation (or refactor / review / debug / docs / perf) to the right context-aware agent. Single entry point from plan to finished work, with human-in-the-loop confirmations.
+description: Orchestrator — plan top-level, stub each phase, require /plan-discuss per phase before execution. Human-in-the-loop at every gate.
 ---
 
 # /plan — Plan & Delegate Orchestrator
 
-`/plan` is the single entry point for any non-trivial task. The **main session** runs this as an orchestration script: it plans, classifies intent, delegates to the correct stack-specific agent, and optionally chains into a reviewer. You confirm at each gate.
+`/plan` is the single entry point for any non-trivial task. The **main session** runs this as an orchestration script: it plans the top-level shape, stubs each phase, then hands off to `/plan-discuss` for per-phase interactive finalization before any implementation.
 
-Model routing happens automatically: **Opus** plans, **Sonnet** implements and reviews. The main session itself never writes the feature code — it delegates.
+Model routing: **Opus** plans, **Sonnet** implements and reviews. Main session never writes feature code — it delegates.
+
+## Core rule (CRITICAL)
+
+**`/plan` NEVER auto-emits phase-level `GOAL.md`, `PLAN.md`, or `DISCUSSION.md`.** Per phase, it emits **only `CONTEXT.md`** (stub — scope hint + prior-phase deps). Phase finalization is **always interactive** via `/plan-discuss <slug> phase-NN`. Rationale: step-by-step per-phase discussion produces better-sized, better-briefed implementer inputs than one-shot multi-phase generation.
+
+Top-level is different — `/plan` DOES emit the full top-level big picture: `CONTEXT.md` + `GOAL.md` + `DISCUSSION.md` + `PLAN.md` (phase table). Top-level iteration still goes through `/plan-discuss <slug>` (no phase arg).
 
 ## When to Use
 
-Use `/plan` when the work is any of:
+Use `/plan` for:
 - New feature, scaffold, or multi-file change
 - Refactor / dead-code cleanup
-- Bug fix that spans >1 file or requires root-cause tracing
+- Bug fix spanning >1 file or requiring root-cause tracing
 - Migration / schema change
 - Performance investigation
 - Architecture decision
 
-Skip `/plan` for single-line edits, typo fixes, or one-file clarifications — just do them.
+Skip `/plan` for single-line edits, typo fixes, or one-file clarifications — use `/do <objective>` or just do them.
 
-## Gate Tools (how confirmations work)
+## Gate Tools
 
-Every decision gate in this orchestration uses a **native Claude Code tool** for user input — not free-text "type yes / proceed." This gives you structured choices and clean UX.
+Every decision gate uses a **native Claude Code tool** — not free-text. Two tools:
 
-Two tools are in play:
+### `AskUserQuestion` — default gate
 
-### `AskUserQuestion` — the default gate (works in any permission mode)
-
-First-class, no permission required, always available. Use it for **every** confirmation gate except where `ExitPlanMode` is applicable (see below). The main session calls it with a `question` string and a list of choice `options`. The user picks one via the native multi-choice UI.
-
-**Canonical option shapes** the main session should offer:
+First-class, no permission required. Used for every gate except plan-mode's first approval. Structured multi-choice UI.
 
 | Gate | Question | Options |
 |---|---|---|
-| After planner returns | "Proceed with this plan?" | `Proceed with <primary-agent>`, `Use different agent`, `Modify plan`, `Abort` |
-| After user picks "Use different agent" | "Which agent should execute this plan?" | (list of alternatives the planner suggested, plus `Other — I'll name one`) |
-| After user picks "Modify plan" | "What should change?" | (free-text follow-up — planner re-dispatches with the change) |
-| After implementer returns | "Run reviewers on the changes?" | `Run <stack>-reviewer`, `Run stack reviewer + infra-security-reviewer` *(only if IaC touched)*, `Run stack reviewer + database-reviewer` *(only if schema touched)*, `Skip review`, `Abort` |
-| After reviewer returns CRITICAL findings | "Reviewer blocked with CRITICAL issues. What next?" | `Send findings back to implementer`, `Fix manually`, `Accept risk and commit anyway`, `Abort` |
+| After planner returns top-level | "Top-level plan ready. Proceed?" | `Approve — start /plan-discuss on phase-01`, `Refine top-level (/plan-discuss <slug>)`, `Abort` |
+| After implementer returns | "Run reviewers on the changes?" | `Run <stack>-reviewer`, `+ infra-security-reviewer` *(IaC touched)*, `+ database-reviewer` *(schema touched)*, `Skip review`, `Abort` |
+| After reviewer CRITICAL | "Reviewer blocked with CRITICAL. Next?" | `Send back to implementer`, `Fix manually`, `Accept risk`, `Abort` |
 
-Any unrecognized option → re-ask. Do not guess.
+### `ExitPlanMode` — only when session in plan mode
 
-### `ExitPlanMode` — the upgraded plan-approval gate (only when session is in plan mode)
+If user entered plan mode before `/plan` (via `Shift+Tab`, `--permission-mode plan`, or `permissions.defaultMode: "plan"`), the first gate uses `ExitPlanMode` with native 5-choice UI. Detection: try `ExitPlanMode` first; fall back to `AskUserQuestion` on error.
 
-If the user entered plan mode before running `/plan` (via `Shift+Tab`, `--permission-mode plan` at CLI launch, or `permissions.defaultMode: "plan"` in `settings.json`), the main session uses `ExitPlanMode` **instead of `AskUserQuestion` for the first gate** (plan approval). This surfaces Claude Code's native plan-approval UI with five choices:
-
-1. Approve + auto-accept future edits
-2. Approve + accept edits as they come
-3. Approve + review each edit manually
-4. Keep planning (feedback)
-5. Refine with Ultraplan
-
-On approval, plan mode exits automatically and the main session proceeds to dispatch the implementer. On "keep planning" or "refine," loop back to the planner with the user's feedback.
-
-**Plan-mode detection (heuristic for the main session):** the surest signal is that recent write-attempts were blocked. Other signals: the session banner / status indicates plan mode; the user explicitly said they toggled it. If unsure, **try `ExitPlanMode` first** — if it errors with "not in plan mode," fall back to `AskUserQuestion`. Either path gives the user a structured approval UI.
-
-### All subsequent gates use `AskUserQuestion`
-
-`ExitPlanMode` applies **only** to the plan-approval gate. All downstream gates (picking an alternative agent, offering reviewer hand-off, handling reviewer findings) use `AskUserQuestion` regardless of whether the session was ever in plan mode.
-
-## What the Main Session Does (Orchestration Script)
+## Orchestration Script
 
 ### 1. Detect active context
 
-List `.claude/agents/` to see which implementers / resolvers / reviewers are installed. Typical combinations:
-- `fastapi-implementer` + `fastapi-reviewer` + `database-reviewer` → FastAPI project
-- `nestjs-implementer` + `nestjs-reviewer` + `database-reviewer` → NestJS project
-- `frontend-implementer` + `frontend-reviewer` + `e2e-runner` → React/Next project
-- `devops-implementer` + any of `{terraform,k8s,helm,kustomize,argocd,terragrunt}-reviewer` → IaC project
+List `.claude/agents/` to find installed implementers + reviewers:
+- `fastapi-implementer` + `fastapi-reviewer` + `database-reviewer` → FastAPI
+- `nestjs-implementer` + `nestjs-reviewer` + `database-reviewer` → NestJS
+- `frontend-implementer` + `frontend-reviewer` + `e2e-runner` → React/Next
+- `devops-implementer` + `{terraform,k8s,helm,kustomize,argocd,terragrunt}-reviewer` → IaC
 
-If **multiple** stack contexts are installed (monorepo), and the ask doesn't clearly name one, ask the user which stack this plan is for **before** dispatching the planner.
+If multiple stacks installed (monorepo) and ask doesn't name one, prompt user before dispatching planner.
 
-### 2. Dispatch the `planner` agent (Opus)
+### 1a. Pre-planner recon (parallel subagent fan-out)
+
+Planner's tools are `[Read, Grep, Glob]` only — it cannot spawn subagents. Main session delegates deep recon first in a single message with parallel `Task` calls (only those that apply to the ask):
+
+- `code-explorer` — ALWAYS when objective touches existing code (feature extension, refactor, bug fix spanning modules). Brief: *"Trace the code path for: <ask>. Report entry points, call graph, current architecture layers, reusable modules, gotchas. Read-only — no edits."*
+- `docs-lookup` — **MANDATORY** when ask names *any* library, framework, or runtime (Next.js, React, NestJS, Prisma, FastAPI, Tailwind, shadcn/ui, etc.) OR when plan will introduce new deps. Brief: *"Fetch CURRENT latest-stable version + canonical usage for: <library list>. Return `name@version (released YYYY-MM-DD)` per package + version-relevant caveats. Planner's training data is stale — do NOT let it cite versions from memory."* Report goes into planner brief under `Recon findings > Versions`.
+- `architect` / `aws-architect` — when ask implies a design decision (new module boundary, new infra component, cross-cutting concern). Brief: *"Evaluate design options for: <ask>. Name ≥2 approaches with trade-offs in ≤200 words."*
+
+**Skip recon when:** single-file ask with exact path named, or trivial config flip. Otherwise fan out.
+
+Collect reports. Pass condensed findings into the planner brief at step 2 under a **Recon findings** heading so planner doesn't redo the same Grep/Glob passes.
+
+### 2. Dispatch `planner` agent (Opus) — top-level only
 
 Via Task, with:
-- The user's ask verbatim
-- A line listing which stack implementers / reviewers are installed (so the planner can tailor its Recommended Next Agent to what's actually available)
-- A line enforcing the discovery budget: **"High-level discovery is capped at ONE `AskUserQuestion` call with ≤4 batched questions. If the objective + codebase + rules answer the question, skip the call entirely. Never ping-pong the user with follow-up questions during planning."**
+- User's ask verbatim
+- **Recon findings** (from step 1a, or "skipped — trivial ask")
+- Installed implementers/reviewers
+- **Scope directive:** *"Emit top-level `CONTEXT.md` + `GOAL.md` + `DISCUSSION.md` + `PLAN.md`. For each phase, emit ONLY `phase-NN-<name>/CONTEXT.md` stub — NO `GOAL.md`, NO `PLAN.md`, NO `DISCUSSION.md` at phase level. Phase deep-dive is `/plan-discuss`'s job, not yours. If the plan has 1 phase, emit inline `## Steps` in top-level `PLAN.md` — no phase folder needed."*
+- **Discovery budget:** *"MANDATORY `AskUserQuestion` gate before emitting files. 1-2 batched calls, ≤4 questions each. Silent discovery first to eliminate answerable-from-repo questions, but for new feature / new stack / new business logic you MUST confirm tech-stack + versions + system-design + business-invariant + acceptance with the user. Zero-question plan forbidden unless ask is single-file bugfix or typo. Never ping-pong — batch tight."*
+- **Version freshness:** *"Never cite library/framework version from training. Use `docs-lookup` recon report as source of truth; if missing, request it before writing files. Record version + fetch date + source in `DISCUSSION.md`."*
 
-The planner runs silent discovery → (optional single batched question call) → **size classification** → emits the plan. The plan ends with a **Recommended Next Agent** section naming one primary agent + alternatives.
+Planner runs silent discovery → optional single batched question → emits top-level artifacts + phase CONTEXT stubs.
 
-**Size classification gate (run by planner at step 2a of its agent contract)**: when the planner estimates **>3 phases**, it pauses with `AskUserQuestion` offering Large (folder-per-phase, deep-dive later via `/plan-phase`) vs Small (flat phase files, plan fully now). 1-2 phases auto-inline, 3 phases auto-flat — no question asked. This counts as a *separate* `AskUserQuestion` call from the high-level discovery one — the discovery budget is 1 call × ≤4 questions, the size gate is independent because it depends on the shape of the plan that discovery produced.
+### 3. Present top-level and gate on approval
 
-**Discovery rule enforcement (orchestrator):** If the planner returns control to the main session with a follow-up `AskUserQuestion` beyond the high-level discovery batch + the size gate, stop it — re-dispatch the planner with "bundle remaining questions into the phase files instead; you've used your discovery budget." Excess interrogation is a planner defect, not a user cost.
+Show top-level `CONTEXT.md` + `GOAL.md` + `PLAN.md` (phase table AND `## System workflow` diagram) unmodified. Before the gate, print a **Whole-picture summary** — terse recap so user sees the entire plan at a glance without scrolling four files:
 
-### 3. Present the plan and gate on approval
-
-Present the plan **unmodified** in the conversation so the user can read it. Then invoke the approval gate — choose **one** of the two tools based on the current permission mode:
-
-**If in plan mode** → call `ExitPlanMode({plan: "<full plan body>"})`.
-- On the user's approval choice → plan mode exits automatically; proceed to step 4 with the planner's *primary* recommended agent.
-- On "keep planning" / "refine" → loop back to step 2 with the user's feedback appended to the original ask.
-- On any form of rejection → end the cycle.
-
-**If not in plan mode** (or if `ExitPlanMode` errors) → call `AskUserQuestion` with:
 ```
-question: "Proceed with this plan?"
+═══ Plan ready: <slug> ═══
+
+▸ What just happened
+  /plan emitted top-level (CONTEXT, GOAL, DISCUSSION, PLAN) + <N> phase stubs (CONTEXT.md only).
+
+▸ Goal
+  <one-line from GOAL.md Done-when>
+
+▸ Shape
+  Phases: <N> · Waves: <count> · Stack: <stack> · Agent: <implementer>
+  Dependencies: <count new packages | "reuses existing stack">
+
+▸ Phase preview (each is a stub — finalize via /plan-discuss before /plan-run)
+  | # | Phase | Wave | Depends | Narrow goal (from CONTEXT.md stub) |
+  |---|-------|------|---------|-------------------------------------|
+  | 01 | <name> | 1 | — | <1-sentence goal> |
+  | 02 | <name> | 2 | 01 | <1-sentence goal> |
+  | …  | …      | … | …  | … |
+
+▸ Top-level system workflow
+<paste `## System workflow` diagram from PLAN.md verbatim>
+
+▸ Recommended next agent
+  <agent name> — <one-line why from PLAN.md Recommended Next Agent>
+
+▸ Next
+  /plan-discuss <slug> phase-01    ← finalize phase 1 (writes GOAL+PLAN+DISCUSSION)
+  /plan-run     <slug> phase-01    ← halts on stub until /plan-discuss done
+```
+
+For single-phase plans, replace "Phase preview" table with `▸ Steps preview` listing first 5 numbered steps from inline `## Steps`, and replace Next block with `/plan-discuss <slug>` + `/plan-run <slug>`.
+
+Then approval gate:
+
+**Plan mode** → `ExitPlanMode({plan: "<top-level body>"})`.
+- Approve → phase 4.
+- Keep planning / refine → loop back to step 2 with feedback.
+- Reject → end.
+
+**Normal mode** → `AskUserQuestion`:
+```
+question: "Top-level plan ready. Proceed?"
 options:
-  - "Proceed with <primary-agent>"
-  - "Use different agent"
-  - "Modify plan"
+  - "Approve — start /plan-discuss on phase-01"
+  - "Refine top-level (/plan-discuss <slug>)"
   - "Abort"
 ```
-- `Proceed with <primary-agent>` → go to step 4 with that agent.
-- `Use different agent` → call `AskUserQuestion` again with the list of alternatives from the planner's Recommended Next Agent section; dispatch the chosen one.
-- `Modify plan` → ask the user (plain-text follow-up) what to change, re-dispatch the planner with that change, loop back to step 3.
-- `Abort` → end the cycle.
 
-Do **not** accept free-text "yes" / "proceed" as a substitute for these tools — always surface the structured gate so the user sees the choices.
+Do NOT accept free-text "yes"/"proceed" — always surface the structured gate.
 
-### 3a. Dependency Approval Gate (CRITICAL — before implementer dispatch)
+### 3a. Dependency Approval Gate (CRITICAL — before any implementer dispatch)
 
-After plan approval (step 3) and **before** dispatching the implementer (step 4), the orchestrator parses the approved `PLAN.md` for the `## Dependencies` section.
+Top-level `PLAN.md` MUST include `## Dependencies` section per `rules/common/dependency-approval.md`. Enforcement:
 
-**Enforcement:**
-
-1. **Missing section → reject + loop back.** If `PLAN.md` has no `## Dependencies` section at all, re-dispatch the planner with the message: *"Missing `## Dependencies` section — per `rules/common/dependency-approval.md`, every plan must declare new packages (or state `_None — reuses existing stack._` explicitly)."* Do not proceed to step 4.
-
-2. **Section exists and says `_None — reuses existing stack._`** → skip the gate, proceed to step 4.
-
-3. **Section lists new packages → surface approval gate(s).** For each entry under `### New packages`, call `AskUserQuestion`:
-
+1. **Missing section** → reject + re-dispatch planner: *"Missing `## Dependencies` — declare new packages or state `_None — reuses existing stack._`."*
+2. **`_None — reuses existing stack._`** → skip gate.
+3. **Lists new packages** → per-package `AskUserQuestion` (batch ≤3 tightly-coupled):
    ```
-   question: "Add <package>@<version> as a <kind> dependency?"
+   question: "Add <package>@<version> as <kind> dep?"
    options:
      - "Approve — install <package>@<version>"
      - "Use different option (I'll name it)"
-     - "Build custom instead (no new dep)"
+     - "Build custom instead"
      - "Skip this capability"
    ```
+4. Non-approval → re-dispatch planner with choice. Revised plan re-enters step 3.
+5. Approval → append entry to top-level `DISCUSSION.md` (date, package, version). Proceed.
+6. **Anti-circumvention:** Implementer dispatch in step 5 (via `/plan-run`) appends: *"`## Dependencies` in `PLAN.md` is exhaustive at pinned versions. Never install unapproved. STOP + `AskUserQuestion` if need arises."*
 
-   **Batch rule:** if the plan introduces ≤3 tightly-coupled packages (e.g. a runtime lib + its `@types/*` + one test helper), use a **single** `AskUserQuestion` listing them together as one bundled approval. For >3 deps or deps serving separate capabilities, ask per-package.
+### 4. Hand off to `/plan-discuss` per phase
 
-4. **On any "Use different option" / "Build custom" / "Skip"** → re-dispatch the planner with the user's choice appended. Revised plan re-enters step 3. Do not patch the plan inline.
-
-5. **On "Approve"** → record the approval in the plan's `DISCUSSION.md` (append an entry: date, packages approved, exact versions). Then proceed to step 4.
-
-6. **Anti-circumvention:** When dispatching the implementer in step 4, append this line verbatim to the implementer's instructions: *"The `## Dependencies` section of `PLAN.md` is the exhaustive list of packages you may install, at the exact pinned versions shown. If you find you need a package not listed, STOP and surface a fresh `AskUserQuestion` — never `npm install` / `pip install` silently. The install-guard hook will warn on every install; that warning is not suppression, it is a reminder the user approval must already exist."*
-
-### 4. Dispatch the chosen agent (Sonnet)
-
-Via Task, with:
-- The **confirmed plan** (full text)
-- Paths to the stack's `rules/` files (the implementer reads these in its own "Read First" step)
-
-Wait for the agent's result. Relay the agent's "Output Format" summary to the user.
-
-### 5. Offer reviewer hand-off
-
-After the implementer finishes, relay its Output Format summary, then call `AskUserQuestion`. Tailor the options to what the change actually touched:
-
-Base option set (always present):
-- `Run <stack>-reviewer`
-- `Skip review`
-- `Abort` (stop before commit)
-
-Append additional options when the diff touches:
-- **IaC** (`*.tf`, `*.yaml` under `manifests/` / `charts/` / `overlays/`, `.tfvars`) → add `Run <stack>-reviewer + infra-security-reviewer`.
-- **Database** (migrations dir, schema files, entity classes) → add `Run <stack>-reviewer + database-reviewer`.
-- **Security-sensitive code** (auth, secrets, input validation, crypto, RBAC) → add `Run <stack>-reviewer + code-reviewer (security focus)`.
-
-Example call (implementer touched IaC and the database):
+After top-level approved, the orchestrator does NOT dispatch the implementer directly. Instead, print the handoff banner:
 
 ```
-question: "Run reviewers on the changes?"
-options:
-  - "Run <stack>-reviewer"
-  - "Run <stack>-reviewer + infra-security-reviewer"
-  - "Run <stack>-reviewer + database-reviewer"
-  - "Run all three"
-  - "Skip review"
-  - "Abort"
+Top-level plan ready at .claude/plans/<slug>/.
+Phase 01 is a stub — only CONTEXT.md written.
+
+Next:
+  /plan-discuss <slug> phase-01    ← interactive Q&A to finalize phase 01
+                                      (writes GOAL.md + PLAN.md + DISCUSSION.md)
+  /plan-run <slug> phase-01        ← execute (halts if stub — requires /plan-discuss first)
+
+Recommended: run phases one at a time. /clear between phases keeps context fresh.
 ```
 
-Dispatch the chosen reviewers in **parallel** (single message with multiple Task calls) when they're independent.
-
-### 5a. Gate on reviewer findings
-
-If any reviewer returns **CRITICAL** findings, call `AskUserQuestion`:
-
+For **single-phase plans** (inline `## Steps`), skip phase handoff — print instead:
 ```
-question: "Reviewer flagged CRITICAL issues. What next?"
-options:
-  - "Send findings back to implementer for a fix pass"
-  - "Fix manually — I'll handle it"
-  - "Accept risk and proceed to commit"
-  - "Abort"
+Single-phase plan. Next:
+  /plan-discuss <slug>             ← iterate top-level interactively (optional)
+  /plan-run <slug>                 ← execute the step list
 ```
 
-If the user picks "Send findings back to implementer," re-dispatch the same implementer agent with the reviewer's output appended — no re-plan needed.
+`/plan` exits. User drives remainder.
 
-### 6. Summarize the cycle
+### 5 — 10. (Handled by `/plan-run`, not `/plan`)
 
-Final message: one paragraph covering (a) what was planned, (b) what was implemented, (c) reviewer verdicts, (d) any deviations the implementer flagged, (e) next suggested action (commit / test / manual verification).
+`/plan-run` owns implementer dispatch, reviewer chaining, CRITICAL gating, commit suggestions, post-phase gate. See `plan-run.md`.
 
 ## Intent → Agent Mapping
 
-The planner classifies and recommends. Mapping:
+The planner classifies intent at top-level and records a `Recommended Next Agent` section in `PLAN.md`. Mapping:
 
-| Plan intent | Primary agent | Fallback if not installed |
+| Plan intent | Primary agent | Fallback |
 |---|---|---|
-| Build feature / scaffold / implement | `fastapi-implementer` / `nestjs-implementer` / `frontend-implementer` / `devops-implementer` | `architect` (if no implementer is installed — design-only output) |
-| Remove dead code / consolidate | `refactor-cleaner` | n/a (in common) |
-| Build / type errors | `build-error-resolver` (stack-specific: fastapi / nestjs / frontend) | Pick by which `.claude/agents/build-error-resolver.md` is installed; fall back to `/build-fix` command if none |
-| Review existing code | `<stack>-reviewer` or `code-reviewer` | `code-reviewer` (in common) |
-| Docs / codemap | `doc-updater` | n/a (in common) |
-| Performance | `performance-optimizer` | n/a (in common) |
-| Architecture decision | `architect` (app) / `aws-architect` (infra) | `architect` (in common) |
+| Build feature / scaffold / implement | `fastapi-implementer` / `nestjs-implementer` / `frontend-implementer` / `devops-implementer` | `architect` (design-only) |
+| Remove dead code / consolidate | `refactor-cleaner` | n/a |
+| Build / type errors | `build-error-resolver` (stack-specific) | `/build-fix` |
+| Review existing code | `<stack>-reviewer` or `code-reviewer` | `code-reviewer` |
+| Docs / codemap | `doc-updater` | n/a |
+| Performance | `performance-optimizer` | n/a |
+| Architecture decision | `architect` / `aws-architect` | `architect` |
 | Database migration | `database-reviewer` + stack implementer | `code-reviewer` |
 | IaC security audit | `infra-security-reviewer` | `code-reviewer` |
-| Exploration / mapping | `code-explorer` | n/a (in common) |
-| Library / framework question | `docs-lookup` | n/a (in common) |
-| E2E test repair | `e2e-runner` | n/a (frontend context only) |
+| Exploration / mapping | `code-explorer` | n/a |
+| Library / framework question | `docs-lookup` | n/a |
+| E2E test repair | `e2e-runner` | n/a (frontend only) |
 
-### When the plan is NOT an implementation task
+### Non-implementation plans
 
-If the planner classifies the work as refactor, review, investigation, perf, docs, or architecture, it **will not silently default to an implementer**. It asks a follow-up, e.g.,
+If intent is refactor, review, investigation, perf, docs, or architecture, the planner asks a follow-up (e.g., *"Refactor primarily — hand off to `refactor-cleaner`, or bundle into `fastapi-implementer`?"*). Relay verbatim. Don't pick for the user.
 
-> "This plan is primarily a refactor. Hand off to `refactor-cleaner`, or bundle the cleanup into `fastapi-implementer`?"
-
-Relay the follow-up to the user exactly as the planner wrote it. Do not pick for them.
-
-## Prompt Shape (what to type)
+## Prompt Shape
 
 ```
 /plan <one-line objective>
@@ -230,22 +214,22 @@ Relay the follow-up to the user exactly as the planner wrote it. Do not pick for
   - Done when: <specific testable outcome>
 ```
 
-**Example (FastAPI, feature):**
+**FastAPI feature:**
 ```
-/plan Users can reset their password via email link.
-  - Reuse the existing mailer service in src/services/mailer.py
-  - Don't change the auth schema unless necessary
+/plan Users can reset password via email link.
+  - Reuse existing mailer in src/services/mailer.py
+  - Don't change auth schema unless necessary
   - Done when: integration test covers request → email → set-new-password round-trip
 ```
 
-**Example (frontend, bug):**
+**Frontend bug:**
 ```
-/plan Fix: /checkout returns 500 when cart is empty. Before fixing, trace the path from the button click to the API and list every place the empty-cart invariant could break.
+/plan Fix: /checkout returns 500 when cart empty. Trace click → API first; list every empty-cart invariant break point.
 ```
 
-**Example (devops, infra):**
+**Devops infra:**
 ```
-/plan Add RDS read replica in staging, matching prod sizing.
+/plan Add RDS read replica in staging, match prod sizing.
   - Must not touch prod state
   - Must not destroy anything
   - Done when: terraform plan shows create-only, no replaces
@@ -253,152 +237,122 @@ Relay the follow-up to the user exactly as the planner wrote it. Do not pick for
 
 ## Production-Readiness Mandate (CRITICAL)
 
-Every plan produced by `/plan` — and every implementation that follows — must be **production-ready on the first pass**. No dev-only scaffolding with `TODO(prod)` markers, no hardcoded env-specific values, no "we'll wire prod later."
+Every plan — and every implementation via `/plan-run` — must be **production-ready on first pass**. No `TODO(prod)` markers, no hardcoded env values, no "wire prod later."
 
-The main session enforces this at three points:
+Enforcement points:
 
-1. **When dispatching the planner (step 2)** — append these two lines verbatim to the planner's instructions:
-   > "Production-readiness is non-negotiable. The plan must cover env-driven config, secret handling, observability, rollout/rollback, and avoid architectural anti-patterns on first pass. Read `.claude/rules/common/production-readiness.md` (anti-pattern catalog) and `.claude/skills/production-patterns/SKILL.md` (correct designs) before emitting the plan. Do not defer prod concerns with `TODO(prod)`. See planner's '3a. Production-Readiness' section."
+1. **Planner dispatch (step 2)** — append verbatim:
+   > "Production-readiness non-negotiable. Top-level plan must cover env-driven config, secret handling, observability, rollout/rollback, avoid anti-patterns on first pass. Read `.claude/rules/common/production-readiness.md` + `.claude/skills/production-patterns/SKILL.md`. No `TODO(prod)`."
    >
-   > "Dependency approval is non-negotiable. The plan MUST include a `## Dependencies` section listing every new package / MCP / container image / SaaS the implementation will introduce — or explicitly state `_None — reuses existing stack._`. For each new dep, list 2+ alternatives + stdlib baseline with the rubric from `.claude/skills/dependency-selection/SKILL.md`. Read `.claude/rules/common/dependency-approval.md` before planning. See planner's '3b. Dependency Footprint' section."
+   > "Dependency approval non-negotiable. Top-level `PLAN.md` MUST include `## Dependencies` section with 2+ alternatives + stdlib baseline per new dep, or `_None — reuses existing stack._`. Read `.claude/rules/common/dependency-approval.md` + `.claude/skills/dependency-selection/SKILL.md`."
 
-2. **When presenting the plan to the user (step 3)** — before surfacing the approval gate, scan the plan body for red flags. If any appear, **do not present for approval** — loop back to the planner with the specific red flags quoted, and ask for a revised plan.
+2. **Top-level red-flag scan (step 3, pre-approval)** — grep + semantic read. On hit, loop back with flags quoted.
 
-   **String-level flags** (grep the plan body):
-   - `TODO(prod)`, `FIXME(prod)`, `handle in prod later`, `wire up prod`
-   - Hardcoded URLs / access keys / bucket names / connection strings
-   - Dev-only branches with no prod counterpart
-   - Missing secret / observability plan on new code paths
+   **String flags:** `TODO(prod)`, `FIXME(prod)`, `handle in prod later`, `wire up prod`, hardcoded URLs/keys/buckets/conn-strings, dev-only branches with no prod counterpart.
 
-   **Dependency flags** (semantic read — see `rules/common/dependency-approval.md`):
-   - `PLAN.md` missing a `## Dependencies` section entirely
-   - Plan body names a package (`npm install x`, `add axios`, etc.) but the section doesn't list it
-   - `## Dependencies` lists a package with no alternatives-considered row
-   - Plan adds a package that duplicates one already in the target's manifest
-   - Plan introduces a stdlib-feasible capability (UUID, debounce, deep clone) via a library with >0 transitives
-   - Pinned version uses `^` / `~` / `latest` instead of an exact version
+   **Version-freshness flags:** any package in `## Dependencies` without source/date line in `DISCUSSION.md` (e.g. "Fetched YYYY-MM-DD from npm"); any version number older than current stable major of that package; `<fetch-latest>` placeholder still present; framework marketing-major mentioned in prose (e.g. "Next.js 15", "React 18") without matching fetched pin. On hit → reject + re-dispatch planner with *"Run `docs-lookup` for <packages>, rewrite pins + DISCUSSION.md source lines."*
 
-   **Architectural anti-patterns** (semantic read — see `rules/common/production-readiness.md` for full catalog):
-   - Server proxies file upload / download (should use presigned URL direct client↔S3)
-   - Inline `await sendEmail` / SMS / push in request handler (should enqueue)
-   - Long-running work (>1s target) in HTTP handler (should be background job)
-   - `setTimeout` / `setInterval` for scheduled jobs (should use CronJob / EventBridge)
-   - N+1 query patterns (loop over rows making per-row DB calls)
-   - Offset pagination on large/growing tables (should be keyset cursor)
-   - Mutations without idempotency key on retryable paths (payments, outbound API calls)
-   - Missing index on newly-filtered column
-   - In-memory cache on multi-replica service (should be Redis/Memcached)
-   - `LIKE '%q%'` search on large tables (should be FTS / OpenSearch)
-   - CORS `*` on credentialed endpoints
-   - Frontend-only auth / role checks
-   - Public endpoints with no rate limiting
-   - Auto-increment DB ids in public URLs
-   - `latest` image tag for prod deployments
-   - External calls missing timeout / retry / circuit breaker
-   - Destructive migrations in one step (should be expand → backfill → contract)
+   **Dependency flags:** missing `## Dependencies`, package named in body but not section, no alternatives row, duplicates manifest dep, stdlib-feasible via library, `^`/`~`/`latest` version.
 
-   When looping back, quote the specific offending lines and name the correct pattern from `skills/production-patterns/SKILL.md` so the planner knows the target shape.
+   **Diagram flags:** missing `## System workflow` section in top-level `PLAN.md`, empty code fence, abstract boxes only ("Service A" / "DB"), no named files/functions, >40 lines (too dense to scan).
 
-3. **When dispatching the implementer (step 4)** — append these two lines verbatim to the implementer's instructions:
-   > "Do not introduce `TODO(prod)` markers, hardcoded env-specific values, or dev-only branches without the prod counterpart. Load all env-specific values via the project's config layer. Avoid architectural anti-patterns listed in `.claude/rules/common/production-readiness.md` — reach for the correct designs in `.claude/skills/production-patterns/SKILL.md` (presigned uploads, enqueued emails, idempotency keys, cursor pagination, etc.). If any step in the plan is ambiguous about prod behavior, stop and ask — do not guess."
-   >
-   > "The `## Dependencies` section of `PLAN.md` is the exhaustive list of packages you may install, at the exact pinned versions shown. Do NOT silently `npm install` / `pip install` / `go get` anything else. If you find you need a package not listed, STOP, run the dependency-approval workflow from `.claude/rules/common/dependency-approval.md` + `.claude/skills/dependency-selection/SKILL.md`, and surface a fresh `AskUserQuestion` before installing."
+   **Architectural anti-patterns:** server-proxied upload/download, inline `await sendEmail`, long work in HTTP handler, `setTimeout` for cron, N+1, offset pagination on large tables, missing idempotency key, missing index, in-memory cache on multi-replica, `LIKE '%q%'` search, CORS `*` + credentials, frontend-only auth, public endpoint no rate limit, auto-increment IDs in URLs, `latest` image tag, missing timeout/retry/circuit-breaker, single-step destructive migration.
 
-If the user explicitly asked for a throwaway spike ("just prototype this locally"), the planner records the trade-off in Risks & Mitigations and the orchestrator skips the red-flag scan — but only if the Overview says so explicitly.
+3. **Per-phase enforcement** — lives in `/plan-discuss` (phase finalization) and `/plan-run` (implementer dispatch). See those commands.
 
-## Important Notes
-
-**The planner never executes.** It only plans and recommends.
-**The main session never implements directly.** It delegates — model switching and stack-specialized rules depend on that hand-off.
-**You are always in the loop.** Every hand-off (planner → implementer, implementer → reviewer) waits for your confirmation before running. You can abort, swap agents, or re-plan at any gate.
-**Plan mode is supported but not required.** Running `/plan` outside plan mode uses `AskUserQuestion` for every gate (works identically). Running `/plan` inside plan mode upgrades the first gate to `ExitPlanMode` — you get Claude Code's native plan-approval UI with five approval modes. Enter plan mode with `Shift+Tab` before `/plan` if you want harness-level write-safety during the planning phase.
-**Production-readiness is enforced.** See the "Production-Readiness Mandate" section above — the orchestrator rejects plans with `TODO(prod)` markers and dev-only paths before ever showing them to you.
-**One phase per conversation (default).** `/plan-run`'s post-phase gate recommends `/clear` before the next phase. Plan folder (`CONTEXT.md` / `DISCUSSION.md` / `PLAN.md` / phase Summaries) bridges state across the reset. This keeps each implementer + reviewer pass operating in a fresh context window — critical for multi-phase plans where conversation history would otherwise grow unbounded. Skip the `/clear` only when phases are tightly coupled.
+Spike exception: user says "throwaway prototype" → planner records trade-off in Risks & Mitigations + orchestrator skips red-flag scan. Only if Overview says so explicitly.
 
 ## Plan Storage
 
-**Every plan is a folder.** No loose `.md` files in `.claude/plans/`. The folder separates the *why* (CONTEXT), *trade-offs* (DISCUSSION), and *how* (PLAN) so each can evolve without bloating the others.
-
-Phase storage has two shapes based on the size-classification gate (section "What the Main Session Does", step 2a of the planner):
+**Every plan is a folder.** Shape:
 
 ```
-# SMALL (1-2 phases inline, or 3 phases flat files)
-.claude/plans/<slug>/
-├── CONTEXT.md
-├── DISCUSSION.md
-├── PLAN.md                  # `## Steps` inline for 1-2 phases, `## Phases` table for 3
-├── phase-01-<name>.md       # only when 3 phases — flat files
-├── phase-02-<name>.md
-└── phase-03-<name>.md
-
-# LARGE (>3 phases AND user picked Large at size gate)
-.claude/plans/<slug>/
-├── CONTEXT.md
-├── DISCUSSION.md
-├── PLAN.md                  # `## Phases` table, `File` column points to folders
-├── phase-01-<name>/
-│   ├── GOAL.md              # stub at plan creation; status: planning
-│   ├── CONTEXT.md           # filled by /plan-phase
-│   ├── PLAN.md              # filled by /plan-phase — implementer brief
-│   └── DISCUSSION.md        # filled by /plan-phase, appended to by /plan-run + /plan-phase-refine
+.claude/plans/<NN>-<slug>/        NN = zero-padded 2-digit sequence (01, 02, ...)
+├── CONTEXT.md            written by /plan — why + constraints + existing code
+├── GOAL.md               written by /plan — big-picture done-when + non-negotiables
+├── DISCUSSION.md         written by /plan — initial decisions log (append-only)
+├── PLAN.md               written by /plan — overview + phase table (or inline ## Steps)
+├── phase-01-<name>/      multi-phase only
+│   ├── CONTEXT.md        STUB written by /plan — phase scope + deps + context hints
+│   ├── GOAL.md           ← written by /plan-discuss (interactive)
+│   ├── PLAN.md           ← written by /plan-discuss (interactive) — implementer brief
+│   └── DISCUSSION.md     ← written by /plan-discuss (interactive) — Q&A log
 └── phase-02-<name>/
-    └── ...
+    └── CONTEXT.md        (stub; remaining three files filled per-phase by /plan-discuss)
 ```
 
-Top-level (both modes):
-- **CONTEXT.md** — why this change, constraints (performance / security / deadlines), existing code refs, stakeholders. Written once at plan creation; rarely updated.
-- **DISCUSSION.md** — append-only log of decisions and trade-offs. Each entry dated. `/plan-refine` appends here. Reviewer findings that change direction append here.
-- **PLAN.md** — the actionable file. Frontmatter (`slug`, `status`, `created`, `stack`, `agent`). Sections: Overview, Acceptance, Phases (table when multi-phase) OR Steps (inline when 1-2 phases), Next action.
+**Plan ID = `NN-<slug>`.** NN derived at `/plan` creation time: `max(NN over .claude/plans/*) + 1`, zero-padded to 2 digits (3 if any existing NN ≥ 99). Gaps from deletes are NOT backfilled — sequence monotonic. Mirrors phase pattern (`phase-NN-<name>/`) so users mention plans by number too: `/plan-run 03` instead of `/plan-run 03-add-password-reset`.
 
-Small-mode per phase:
-- **phase-NN-<name>.md** — self-contained brief per phase. Full implementer input. Written by `/plan` in one pass.
+**Single-phase plans** skip phase folders — `PLAN.md` holds `## Steps` inline, `/plan-run` executes directly.
 
-Large-mode per phase (folder):
-- **GOAL.md** — narrow phase goal + acceptance + deps. Stub emitted by `/plan` at creation (status: `planning`). Flipped to `planned` by `/plan-phase`, `wip` by `/plan-run`, `done` by `/plan-run` completion.
-- **CONTEXT.md** (inside folder) — phase-scoped constraints, reusable code refs, prior-phase outputs this phase depends on. Filled by `/plan-phase`.
-- **PLAN.md** (inside folder) — concrete steps, files touched, production checklist, verify, done-when. Filled by `/plan-phase`. This is what `/plan-run` reads. `## Summary` appended by `/plan-run` after execution.
-- **DISCUSSION.md** (inside folder) — phase-scoped decisions log. Started by `/plan-phase`, appended by `/plan-phase-refine` and `/plan-run`.
+Top-level files:
+- **CONTEXT.md** — why, constraints (perf/security/deadlines), existing code refs, stakeholders. Written once.
+- **GOAL.md** — overall success criteria + non-negotiables. Anchors every phase. Rarely changes.
+- **DISCUSSION.md** — append-only decisions log. `/plan-discuss <slug>` appends here. Reviewer findings that shift direction append here.
+- **PLAN.md** — actionable. Frontmatter (`slug`, `status`, `created`, `stack`, `agent`). Sections: Overview, Acceptance, Dependencies, Phases (table) OR Steps (inline when 1 phase), Next.
 
-`status` values: `planning` → `in-progress` → `done` (or `blocked` on CRITICAL reviewer findings).
-Phase `status` values: `planning` (large-mode stub) → `planned` (large-mode deep-planned, or small-mode at creation) → `wip` → `done` (or `blocked`).
-`wave:` field in phase frontmatter groups phases runnable in parallel once deps satisfied.
-Slug derivation: kebab-case of the objective (first 6 words, alphanumeric + hyphens).
+Per-phase files (multi-phase only):
+- **CONTEXT.md** (stub, by `/plan`) — narrow phase goal hint + dep numbers + 1-3 bullets naming reusable code / prior-phase outputs relevant to this phase. Status: `planning`. ~15-20 lines cap.
+- **GOAL.md** (by `/plan-discuss`) — phase goal + acceptance + deps + wave + agent. Status flipped `planning → planned` on /plan-discuss finalize, `wip → done` by `/plan-run`.
+- **PLAN.md** (by `/plan-discuss`) — concrete steps, files touched, production checklist, verify, done-when. What `/plan-run` reads. `## Summary` appended by `/plan-run` after execution.
+- **DISCUSSION.md** (by `/plan-discuss`) — phase-scoped Q&A log + decisions. Started at finalize, appended by future `/plan-discuss <slug> phase-NN` runs and by `/plan-run`.
+
+Status values (top-level + phase `GOAL.md`): `planning` → `planned` (deep-discussed) → `wip` → `done` (or `blocked`).
+`wave:` groups phases runnable in parallel once deps satisfied.
+Slug: kebab-case of objective (first 6 words, alphanumeric + hyphens). Folder = `<NN>-<slug>` (see Plan ID above).
+
+### Slug resolution (canonical — every sibling command uses this)
+
+Every command taking a `<plan>` argument (`/plan-discuss`, `/plan-run`, `/explain`, `/grill`) resolves it against `.claude/plans/` in this order:
+
+1. **Literal match** — `.claude/plans/<arg>/` exists → use it. (Accepts full `03-add-password-reset` form.)
+2. **Numeric shortcut** — `<arg>` matches `^\d{1,3}$` → glob `.claude/plans/<arg-zero-padded>-*/` → unique match → use it. (Accepts `3` or `03`. Pad arg to 2 digits before glob.)
+3. **Slug-only suffix** — glob `.claude/plans/*-<arg>/` → unique match → use it. (Accepts bare `add-password-reset`, back-compat with pre-NN plans without prefix.)
+4. **Ambiguous** (>1 match in step 2 or 3) → list candidates + error: *"`<arg>` matches: `03-foo`, `13-foo-bar`. Be more specific."*
+5. **No match** → error + suggest `/plans` to list.
+
+Resolved name (full `NN-slug`) becomes `<slug>` in all downstream prompts/banners — never the bare numeric form, so plan files stay self-identifying.
 
 ### Sibling commands
 
 | Command | Purpose |
 |---|---|
-| `/plans` | List all plan folders + status (both planning and execution progress) |
-| `/plan-refine <slug> [CONTEXT\|DISCUSSION\|PLAN\|phase-NN]` | Re-dispatch planner scoped to top-level file, or to one flat phase file (small mode). For large-mode phase folders, delegates to `/plan-phase-refine`. |
-| `/plan-phase <slug> phase-NN` | **Large mode only.** Deep-dive planner for one phase — fills CONTEXT / PLAN / DISCUSSION inside phase folder. Required before `/plan-run` can execute a large-mode phase. |
-| `/plan-phase-refine <slug> phase-NN [GOAL\|CONTEXT\|PLAN\|DISCUSSION]` | **Large mode only.** Refine one file inside a phase folder. |
-| `/plan-run <slug> [phase-NN]` | Implementer + auto-reviewer; updates PLAN.md phase table + appends Summary (to flat file or folder's `PLAN.md`); offers `/explain` and `/grill` at post-phase gate. Halts on large-mode stub folders — prompts `/plan-phase` first. |
-| `/explain <slug> [phase-NN]` | Walkthrough of files touched by a done phase (reads phase Summary) |
-| `/grill <slug> [phase-NN]` | Quiz on a done phase — pressure-tests mental model against acceptance criteria |
+| `/plans` | List all plan folders + status (planning + execution progress). |
+| `/plan-discuss <slug>` | Interactive Q&A for top-level `CONTEXT` / `GOAL` / `DISCUSSION` / `PLAN`. Updates in place. |
+| `/plan-discuss <slug> phase-NN` | Interactive Q&A to **finalize** a phase — writes phase `GOAL.md` + `PLAN.md` + `DISCUSSION.md` from the `CONTEXT.md` stub. Required before `/plan-run` can execute that phase. |
+| `/plan-run <slug> [phase-NN]` | Implementer + auto-reviewer; updates phase-table status + appends Summary. Halts on stub phase — prompts `/plan-discuss` first. |
+| `/explain <slug> [phase-NN]` | Walkthrough of files touched by a done phase. |
+| `/grill <slug> [phase-NN]` | Quiz on a done phase — pressure-tests mental model. |
 
-The orchestrator updates `PLAN.md` phase-table status **after every gate** (via `Edit`), so `/plans` always reflects truth. Decisions append to `DISCUSSION.md`.
+`/plan-refine`, `/plan-phase`, `/plan-phase-refine` **no longer exist** — all iteration flows through `/plan-discuss`.
 
 ### Inbox scratchpad
 
-`.claude/plans/_inbox.md` — single flat file for not-yet-planned ideas. Claude may append when the user mentions an idea out-of-scope for the current plan. Review manually; `/plan` reads it when creating a new plan.
+`.claude/plans/_inbox.md` — flat file for not-yet-planned ideas. Claude may append when user mentions out-of-scope idea. `/plan` reads when creating new plan.
 
 ### Fast-path (no plan folder)
 
-For 1-3 file tasks where planning overhead exceeds the work, use `/do <objective>` — dispatches implementer + reviewer directly, no plan folder. See `do.md`.
+For 1-3 file tasks where planning overhead > work: `/do <objective>` — dispatches implementer + reviewer, no folder. See `do.md`.
+
+## Important Notes
+
+- **The planner never executes.** Only plans and recommends.
+- **The main session never implements directly.** Delegates via `/plan-run`.
+- **Per-phase discussion is mandatory.** `/plan-run` refuses to execute a stub phase — `/plan-discuss <slug> phase-NN` must finalize first. This enforces step-by-step review.
+- **You are always in the loop.** Every hand-off waits for confirmation. Abort, refine, swap at any gate.
+- **Plan mode supported but not required.** Outside plan mode → `AskUserQuestion` for all gates. Inside plan mode → first gate upgrades to `ExitPlanMode`.
+- **Production-readiness enforced.** Red-flag scan rejects unsafe plans before approval.
+- **One phase per conversation (default).** `/plan-run`'s post-phase gate recommends `/clear` before next phase. Plan folder bridges state across the reset.
 
 ## Related Commands
 
-- `/do <objective>` — fast path for small tasks (no plan folder).
-- `/plans` — list existing plans with planning + execution progress.
-- `/plan-refine <slug> [phase-NN]` — refine a plan in place (top-level files, or flat phase file in small mode).
-- `/plan-phase <slug> phase-NN` — deep-dive planner for one phase of a large plan (folder mode).
-- `/plan-phase-refine <slug> phase-NN [GOAL|CONTEXT|PLAN|DISCUSSION]` — refine one file inside a phase folder.
-- `/plan-run <slug> [phase-NN]` — execute a phase with auto-reviewer.
-- `/explain <slug> [phase-NN]` — concise structural walkthrough of what a phase shipped (also accepts ad-hoc `<path>` / `<symbol>`).
-- `/grill <slug> [phase-NN]` — quiz yourself on what a phase shipped (also accepts ad-hoc `<path>`). Offered automatically at `/plan-run`'s post-phase gate.
-- `/build-fix` — shortcut when the task is *only* fixing a red build.
-- `/code-review` — review any uncommitted diff without a plan.
-- `/refactor-clean` — shortcut when the task is *only* dead-code cleanup.
-- `/checkpoint` — save state between phases on long plans.
-
-If you're not sure which shortcut fits, just run `/plan` — the orchestrator routes for you.
+- `/do <objective>` — fast path, no plan folder.
+- `/plans` — list plans with progress.
+- `/plan-discuss <slug> [phase-NN]` — interactive iteration (top-level or phase).
+- `/plan-run <slug> [phase-NN]` — execute.
+- `/explain <slug> [phase-NN]` — walkthrough.
+- `/grill <slug> [phase-NN]` — quiz.
+- `/build-fix` — shortcut for red build.
+- `/code-review` — review uncommitted diff, no plan.
+- `/refactor-clean` — shortcut for dead-code cleanup.
+- `/checkpoint` — save state between phases.

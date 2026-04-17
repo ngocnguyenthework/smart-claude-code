@@ -12,18 +12,21 @@ Pairs with `/plan-run`: after a phase finishes, `/explain <slug> phase-NN` walks
 
 ```
 /explain <path|symbol|.>          # ad-hoc walkthrough
-/explain <slug>                   # most-recent done phase of a plan
-/explain <slug> phase-NN          # specific phase
-/explain <slug> all               # whole plan — every done phase, stitched
+/explain <plan>                   # most-recent done phase of a plan
+/explain <plan> phase-NN          # specific phase
+/explain <plan> all               # whole plan — every done phase, stitched
 ```
+
+`<plan>` accepts: full `NN-slug`, bare `NN` shortcut, or bare slug suffix. Resolution per `plan.md ## Slug resolution`.
 
 **Examples:**
 ```
 /explain src/auth/middleware.ts
 /explain UserService.register
-/explain .                              # whole repo (high-level only)
-/explain add-password-reset             # last done phase of that plan
-/explain add-password-reset phase-02    # phase 2 specifically
+/explain .                       # whole repo (high-level only)
+/explain 03                      # last done phase of plan 03 (NN shortcut)
+/explain 03 phase-02             # phase 2 specifically
+/explain 03-add-password-reset   # full NN-slug also accepted
 ```
 
 ## Behavior
@@ -34,9 +37,9 @@ Pairs with `/plan-run`: after a phase finishes, `/explain <slug> phase-NN` walks
 2. Enforce 400-word cap. Truncate if over.
 3. Relay verbatim.
 
-### Plan mode (`<slug>` / `<slug> phase-NN`)
+### Plan mode (`<plan>` / `<plan> phase-NN`)
 
-1. Validate `.claude/plans/<slug>/` exists. Error if missing.
+1. Resolve `<plan>` per `plan.md ## Slug resolution`. Validate `.claude/plans/<NN-slug>/` exists. Error if missing.
 2. Resolve target phase:
    - `phase-NN` → that file.
    - No phase arg → highest-numbered phase with `status: done` in PLAN.md table. Error if none done.

@@ -67,6 +67,25 @@ class AutoIncrementBase(BaseModel):
 
 **Soft delete is the default.** `BaseRepository.delete()` sets `deleted_at`; all read helpers filter `deleted_at.is_(None)`. Use `hard_delete()` only when you explicitly mean it (GDPR, cascade cleanup).
 
+## Alembic Migrations (CRITICAL)
+
+**Always generate migrations with Alembic. Never hand-write migration files.**
+
+```bash
+# After model change:
+uv run alembic revision --autogenerate -m "add users table"
+uv run alembic upgrade head
+```
+
+Rules:
+- **Never** create files under `migrations/versions/` by hand — autogenerate only.
+- **Always review** generated diff before commit. Autogenerate misses: enum value changes, column renames (sees drop+add), check constraints, server defaults, index name differences. Edit the generated file to fix these — do not author from scratch.
+- **One logical change per revision.** No bundling unrelated schema edits.
+- **Never edit an applied revision.** If wrong, create new revision that corrects it.
+- Run `alembic upgrade head` locally before commit to verify it applies cleanly.
+
+Rationale: autogenerate diffs models vs DB metadata — catches drift humans miss, enforces consistent `op.*` calls, wires revision chain correctly.
+
 ## Session Management: `@transactional_session`
 
 We do **not** inject sessions via `Depends(get_db)`. Instead, repository methods are decorated with `@transactional_session`, which:
@@ -193,6 +212,8 @@ company_repository = CompanyRepository(Company)  # module-level singleton
 ## Service Layer
 
 Services hold business logic, call repositories, and own **multi-step transactions**. When a workflow spans multiple repository calls that must be atomic, open a session explicitly and pass `db=` to each call.
+
+**No module-level helpers/constants above the class.** See [coding-style.md → Service / Repository File Organization](./coding-style.md#service--repository-file-organization-critical). Service-bound helpers → `@staticmethod` inside class. Cross-service helpers → `utils/`. Module top = imports + `log` + class + singleton only.
 
 ```python
 # services/company.py

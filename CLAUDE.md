@@ -14,7 +14,7 @@ Users run `./install.sh --context <names>` in their target project; the installe
 
 ```bash
 # Install this toolkit into another project:
-./install.sh --context <name>[,<name>...] [--target claude|cursor|codex] [--dry-run] [--force]
+./install.sh --context <name>[,<name>...] [--target claude|cursor|codex] [--dry-run] [--force] [--skip-scripts]
 
 # Work on smart-claude itself with Claude Code:
 ./install.sh --context all --dir . --force
@@ -94,6 +94,9 @@ Per-context MCP registrations. The installer merges `mcpServers` keys across con
 - **MCP `mcpServers`**: shallow-merged via `Object.assign` — last context wins on key collision. Written to `<root>/.mcp.json` (project scope).
 - **Hook scripts** (`scripts/hooks/`, `scripts/lib/`): copied into the target's `.claude/scripts/`. Internal `../lib/*` requires keep working because both dirs move together.
 - **Docs** (`contexts/<ctx>/README.md`, `contexts/common/INTERNALS.md`): copied into the target's `.claude/docs/` as `<ctx>-README.md` and `INTERNALS.md`. Skipped for `--target cursor` (rules-only by convention).
+- **`--target cursor`**: rules only — flattened to `.cursor/rules/*.mdc`. Agents, commands, hooks, scripts, MCP, docs all skipped.
+- **`--target codex`**: rules + agents + contexts under `.codex/references/`; hooks/MCP skipped.
+- **`--skip-scripts`**: suppresses copying `.claude/scripts/`. Use when target already manages hook runtime separately.
 
 ### Session Memory Pipeline (common)
 ```

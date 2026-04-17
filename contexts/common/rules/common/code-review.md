@@ -45,16 +45,7 @@ Before marking code complete:
 
 ## Agent Usage
 
-| Agent | Purpose |
-|-------|---------|
-| **code-reviewer** | General quality, patterns |
-| **nestjs-reviewer** | NestJS-specific issues |
-| **fastapi-reviewer** | FastAPI-specific issues |
-| **terraform-reviewer** | Terraform plan safety |
-| **k8s-reviewer** | K8s manifest security |
-| **infra-security-reviewer** | IaC security scan |
-| **database-reviewer** | Query/schema/migration review |
-| **frontend-reviewer** | React/Next.js/Tailwind review |
+See [agents.md](./agents.md) for reviewer agent table + routing rules.
 
 ## Approval Criteria
 

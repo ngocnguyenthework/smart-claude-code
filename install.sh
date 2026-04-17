@@ -18,6 +18,9 @@
 #   --dir <path>       Optional. Target project root (default: cwd).
 #   --dry-run          Print planned operations, don't copy.
 #   --force            Overwrite existing files.
+#   --sync             Mirror source: overwrite + delete stale files under managed
+#                      subtrees (agents/, commands/, rules/, skills/, contexts/,
+#                      docs/, scripts/hooks/, scripts/lib/). Implies --force.
 #   --skip-scripts     Skip copying .claude/scripts/hooks and .claude/scripts/lib.
 #   --help             Show full help.
 #

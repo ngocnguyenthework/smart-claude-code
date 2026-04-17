@@ -27,6 +27,13 @@
  *   --target <harness>  Optional. claude (default) | cursor | codex.
  *   --dry-run           Print planned file operations without copying.
  *   --force             Overwrite existing files.
+ *   --sync              Mirror source: overwrite existing files AND delete any
+ *                       files in managed subtrees (agents/, commands/, rules/,
+ *                       skills/, contexts/, docs/, scripts/hooks/, scripts/lib/)
+ *                       that are no longer present in the source contexts.
+ *                       Useful when a rule/agent was removed upstream and you
+ *                       want the target to match. Implies --force. Never touches
+ *                       settings.json, .mcp.json, or .claude/.storage/.
  *   --skip-scripts      Don't copy .claude/scripts/hooks/ and .claude/scripts/lib/.
  *   --help              Show this help.
  *
@@ -65,6 +72,7 @@ function parseArgs(argv) {
     dryRun: false,
     force: false,
     skipScripts: false,
+    sync: false,
     help: false,
   };
 
@@ -93,6 +101,11 @@ function parseArgs(argv) {
         break;
       case '--skip-scripts':
         args.skipScripts = true;
+        break;
+      case '--sync':
+      case '-S':
+        args.sync = true;
+        args.force = true;
         break;
       case '--help':
       case '-h':
@@ -354,6 +367,50 @@ function planDocs(contexts, target) {
   return docs;
 }
 
+function managedSubtreesForTarget(target, { skipScripts }) {
+  if (target === 'cursor') return ['rules'];
+  if (target === 'codex') return ['references/rules', 'references/agents', 'references/contexts'];
+  const subs = ['agents', 'commands', 'rules', 'skills', 'contexts', 'docs'];
+  if (!skipScripts) subs.push('scripts/hooks', 'scripts/lib');
+  return subs;
+}
+
+function removeEmptyDirs(root) {
+  if (!fs.existsSync(root)) return;
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (entry.isDirectory()) removeEmptyDirs(path.join(root, entry.name));
+  }
+  try {
+    if (fs.readdirSync(root).length === 0) fs.rmdirSync(root);
+  } catch { /* non-empty or gone */ }
+}
+
+function pruneStale(claudeDir, plannedRelPaths, subtrees, { dryRun }) {
+  const keep = new Set(
+    plannedRelPaths.map(p => p.split(path.sep).join('/')),
+  );
+  let pruned = 0;
+  let wouldPrune = 0;
+  for (const sub of subtrees) {
+    const root = path.join(claudeDir, sub);
+    if (!fs.existsSync(root)) continue;
+    for (const abs of walkDir(root)) {
+      const rel = path.relative(claudeDir, abs).split(path.sep).join('/');
+      if (keep.has(rel)) continue;
+      if (dryRun) {
+        wouldPrune++;
+        console.log(`  [prune] would-delete → ${abs}`);
+      } else {
+        fs.unlinkSync(abs);
+        pruned++;
+        console.log(`  [prune] deleted → ${abs}`);
+      }
+    }
+    if (!dryRun) removeEmptyDirs(root);
+  }
+  return { pruned, 'would-prune': wouldPrune };
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) { printHelp(); process.exit(0); }
@@ -384,10 +441,13 @@ function main() {
     'skipped-exists': 0,
   };
 
+  const plannedRelPaths = [];
+
   for (const item of planCopies(contexts, args.target)) {
     const dst = path.join(claudeDir, item.relTarget);
     const res = copyFile(item.src, dst, args);
     counts[res] = (counts[res] || 0) + 1;
+    plannedRelPaths.push(item.relTarget);
     if (args.dryRun) console.log(`  [${item.ctx}/${item.kind}] → ${dst}`);
   }
 
@@ -412,6 +472,7 @@ function main() {
       const dst = path.join(claudeDir, item.relTarget);
       const res = copyFile(item.src, dst, args);
       counts[res] = (counts[res] || 0) + 1;
+      plannedRelPaths.push(item.relTarget);
       if (args.dryRun) console.log(`  [scripts] → ${dst}`);
     }
   }
@@ -420,7 +481,14 @@ function main() {
     const dst = path.join(claudeDir, item.relTarget);
     const res = copyFile(item.src, dst, args);
     counts[res] = (counts[res] || 0) + 1;
+    plannedRelPaths.push(item.relTarget);
     if (args.dryRun) console.log(`  [docs] → ${dst}`);
+  }
+
+  if (args.sync) {
+    const subtrees = managedSubtreesForTarget(args.target, { skipScripts: args.skipScripts });
+    const pruneCounts = pruneStale(claudeDir, plannedRelPaths, subtrees, args);
+    for (const [k, v] of Object.entries(pruneCounts)) counts[k] = (counts[k] || 0) + v;
   }
 
   if (args.target === 'claude') {

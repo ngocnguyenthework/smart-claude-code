@@ -13,7 +13,7 @@ The baseline bundle. **Always installed** with every `--context` selection. Ship
 | Folder | What's in it |
 |---|---|
 | `agents/` | 8 generalist agents (architect, planner, code-reviewer, code-explorer, refactor-cleaner, performance-optimizer, doc-updater, docs-lookup) |
-| `commands/` | 13 workflow commands (`/plan`, `/plans`, `/plan-refine`, `/plan-run`, `/do`, `/explain`, `/grill`, `/code-review`, `/refactor-clean`, `/build-fix`, `/checkpoint`, `/learn`, `/prompt-optimize`) |
+| `commands/` | 12 workflow commands (`/plan`, `/plans`, `/plan-discuss`, `/plan-run`, `/do`, `/explain`, `/grill`, `/code-review`, `/refactor-clean`, `/build-fix`, `/checkpoint`, `/learn`, `/prompt-optimize`) |
 | `rules/common/` | cross-cutting style + security + testing rules |
 | `skills/` | 19 shared skills (agentic engineering, verification loops, codebase onboarding, autonomous loops, deep research, etc.) |
 | `contexts/` | `dev.md`, `research.md`, `review.md` session framings |

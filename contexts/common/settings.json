@@ -2,7 +2,6 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "description": "Common Claude Code hooks for smart-claude. Loaded into every context — session memory, commit quality, safety guardrails. Language-specific format/typecheck hooks live in their own contexts (nestjs/frontend for JS/TS, fastapi for Python).",
   "env": {
-    "CLAUDE_CODE_EFFORT_LEVEL": "max",
     "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING": "1",
     "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"
   },
@@ -11,16 +10,76 @@
       "Bash(git add*)",
       "Bash(git commit*)",
       "Bash(git push*)",
-      "Read(.env*)",
-      "Read(**/secrets/*)",
+
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/.envrc)",
+      "Read(**/secrets/**)",
+      "Read(**/*secret*)",
       "Read(**/*credential*)",
       "Read(**/*.pem)",
       "Read(**/*.key)",
-      "Read(**/id_rsa)",
-      "Read(**/id_ed25519)",
-      "Read(**/.aws/*)",
-      "Read(**/kubeconfig)",
-      "Read(**/.ssh/*)"
+      "Read(**/*.ppk)",
+      "Read(**/*.p12)",
+      "Read(**/*.pfx)",
+      "Read(**/*.jks)",
+      "Read(**/*.keystore)",
+      "Read(**/*.kdbx)",
+      "Read(**/*.gpg)",
+      "Read(**/id_rsa*)",
+      "Read(**/id_dsa*)",
+      "Read(**/id_ecdsa*)",
+      "Read(**/id_ed25519*)",
+      "Read(**/.ssh/**)",
+      "Read(**/.aws/**)",
+      "Read(**/.gcp/**)",
+      "Read(**/.azure/**)",
+      "Read(**/.kube/**)",
+      "Read(**/kubeconfig*)",
+      "Read(**/.netrc)",
+      "Read(**/.pgpass)",
+      "Read(**/.my.cnf)",
+      "Read(**/.htpasswd)",
+      "Read(**/service-account*.json)",
+      "Read(**/service_account*.json)",
+
+      "Edit(**/.env)",
+      "Edit(**/.env.*)",
+      "Write(**/.env)",
+      "Write(**/.env.*)",
+
+      "Bash(cat *.env*)",
+      "Bash(cat *.pem)",
+      "Bash(cat *.key)",
+      "Bash(cat */.ssh/*)",
+      "Bash(cat */.aws/*)",
+      "Bash(cat */credentials*)",
+      "Bash(less *.env*)",
+      "Bash(more *.env*)",
+      "Bash(head *.env*)",
+      "Bash(tail *.env*)",
+      "Bash(source *.env*)",
+      "Bash(. *.env*)",
+      "Bash(printenv)",
+      "Bash(env)",
+      "Bash(xxd *.env*)",
+      "Bash(base64 *.env*)",
+      "Bash(strings *.env*)",
+      "Bash(cp *.env* *)",
+      "Bash(mv *.env* *)",
+      "Bash(tar *.env*)",
+      "Bash(zip *.env*)",
+      "Bash(scp *.env*)",
+      "Bash(curl *-T *.env*)",
+      "Bash(rsync *.env*)",
+      "Bash(awk *.env*)",
+      "Bash(sed *.env*)",
+      "Bash(grep *.env*)",
+      "Bash(rg *.env*)",
+      "Bash(python -c *open*.env*)",
+      "Bash(python3 -c *open*.env*)",
+      "Bash(node -e *readFile*.env*)",
+      "Bash(node -e *.env*)"
     ],
     "defaultMode": "plan"
   },
@@ -37,7 +96,31 @@
         "description": "Load previous session context at startup"
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/library-docs-reminder.js\"",
+            "timeout": 5000
+          }
+        ],
+        "description": "When prompt mentions libraries/packages/SDKs/frameworks/system design, inject reminder to fetch docs via context7 or exa MCP before coding"
+      }
+    ],
     "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit|Glob|Grep|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/secrets-guard.js\"",
+            "timeout": 5000
+          }
+        ],
+        "description": "Block access to secret files (.env, .pem, .ssh/*, .aws/*, kubeconfig, ...) via any tool — absolute paths, Bash tricks, or obscure shells"
+      },
       {
         "matcher": "Bash",
         "hooks": [

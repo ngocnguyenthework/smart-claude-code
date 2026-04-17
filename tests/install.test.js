@@ -403,13 +403,13 @@ test('merged settings.json carries env and permissions from common', () => {
     const settings = JSON.parse(
       fs.readFileSync(path.join(tmpDir, '.claude', 'settings.json'), 'utf8'),
     );
-    assert.equal(settings.env.CLAUDE_CODE_EFFORT_LEVEL, 'max');
     assert.equal(settings.env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING, '1');
     assert.equal(settings.env.CLAUDE_CODE_DISABLE_1M_CONTEXT, '1');
     assert.equal(settings.permissions.defaultMode, 'plan');
     assert.ok(Array.isArray(settings.permissions.deny));
     assert.ok(settings.permissions.deny.includes('Bash(git push*)'));
-    assert.ok(settings.permissions.deny.includes('Read(.env*)'));
+    assert.ok(settings.permissions.deny.includes('Read(**/.env)'));
+    assert.ok(settings.permissions.deny.includes('Read(**/.env.*)'));
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -423,7 +423,6 @@ test('merged settings.json preserves env and permissions across multi-context in
     const settings = JSON.parse(
       fs.readFileSync(path.join(tmpDir, '.claude', 'settings.json'), 'utf8'),
     );
-    assert.equal(settings.env.CLAUDE_CODE_EFFORT_LEVEL, 'max');
     assert.equal(settings.permissions.defaultMode, 'plan');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });

@@ -62,10 +62,8 @@ test('common context ships plan-workflow + utility commands', () => {
   const expected = [
     'plan.md',
     'plans.md',
-    'plan-refine.md',
+    'plan-discuss.md',
     'plan-run.md',
-    'plan-phase.md',
-    'plan-phase-refine.md',
     'do.md',
     'explain.md',
     'grill.md',
