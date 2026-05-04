@@ -41,17 +41,17 @@ Pairs with `/plan-run`: after a phase finishes, `/explain <slug> phase-NN` walks
 
 1. Resolve `<plan>` per `plan.md ## Slug resolution`. Validate `.claude/plans/<NN-slug>/` exists. Error if missing.
 2. Resolve target phase:
-   - `phase-NN` → that file.
-   - No phase arg → highest-numbered phase with `status: done` in PLAN.md table. Error if none done.
+   - `phase-NN` → that phase's `PHASE.md`.
+   - No phase arg → highest-numbered phase with `status: done` in `ROADMAP.md ## Phases` table. Error if none done.
    - `all` → iterate every done phase.
-3. Read phase file's `## Summary` block. Extract:
+3. Read phase's `PHASE.md ## Summary` block. Extract:
    - `files touched:` list
    - `commits:` list (for git-log fallback if Summary thin)
-4. Also read `CONTEXT.md` for background (pass as agent input, not output).
+4. Also read `PRD.md` (goal, acceptance, constraints) + `TECH-SPEC.md` (architecture) for background — pass as agent input, not output.
 5. Dispatch `code-explorer` scoped **only** to the touched files. Pass:
    - File list verbatim
-   - Phase goal (from phase file `## Goal`)
-   - Acceptance criteria touched by this phase
+   - Phase goal (from `PHASE.md ## Goal`)
+   - Acceptance criteria (from `PRD.md ## Acceptance`) touched by this phase
 6. Same 4-section output (Overview / Key files / Data flow / Gotchas) — `Overview` references the phase goal.
 7. Cap stays 400 words per phase. `all` mode produces one block per phase.
 

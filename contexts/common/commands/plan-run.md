@@ -1,10 +1,10 @@
 ---
-description: Execute the next (or a specified) phase of a plan. Dispatches the stack implementer and automatically runs the matching reviewer(s) afterward. Halts on stub phases — requires /plan-discuss first.
+description: Execute the next (or a specified) phase of a plan. Dispatches the stack implementer and automatically runs the matching reviewer(s) afterward. Halts on un-finalized phases — requires /plan-discuss first.
 ---
 
 # /plan-run — Execute a phase
 
-Dispatches the stack implementer for one phase, then **automatically** runs matching reviewer(s). Updates `PLAN.md` phase-table status + appends `## Summary` to the phase's `PLAN.md` (or to top-level `PLAN.md ## Summary` for single-phase plans).
+Dispatches the stack implementer for one phase, then **automatically** runs matching reviewer(s). Updates `ROADMAP.md` phase-table status + appends `## Summary` to the phase's `PHASE.md`.
 
 ## Usage
 
@@ -19,24 +19,22 @@ Dispatches the stack implementer for one phase, then **automatically** runs matc
 
 ## Behavior
 
-### 1. Read `PLAN.md`
+### 1. Read `ROADMAP.md`
 
-- `## Phases` table present → multi-phase plan. Pick target:
+- `## Phases` table: pick target:
   - User-specified → use it. Refuse status=done unless `--redo`.
-  - Else → lowest `#` with `status: todo` / `planned` and all `depends:` done.
-- `## Steps` only (no phase table) → single-phase. Run steps inline, no phase folder.
+  - Else → lowest `#` with `status: planned` and all `depends:` done.
 
-### 1a. Stub guard (multi-phase only — CRITICAL)
+### 1a. Finalization guard (CRITICAL)
 
 Resolve `<plan>` per `plan.md ## Slug resolution` first. For the target phase folder, check:
 - Phase folder exists at `.claude/plans/<NN-slug>/phase-NN-*/`.
-- Phase `GOAL.md` exists and has `status: planned` (or `wip` / `done` for re-runs).
-- Phase `PLAN.md` exists inside folder.
+- `phase-NN-*/PHASE.md` exists with `status: planned` (or `wip` / `done` for re-runs).
 
-If **any** of these fail (phase is a stub — only `CONTEXT.md` written), halt before any dispatch:
+If **either** fails (folder missing, PHASE.md missing, or status still `planning`), halt before any dispatch:
 
 ```
-question: "Phase <NN> is a stub — not yet finalized. What next?"
+question: "Phase <NN> is not finalized. What next?"
 options:
   - "Run /plan-discuss <slug> phase-NN first"  (Recommended)
   - "Abort"
@@ -75,25 +73,25 @@ Then stage and commit (one line, no body):
 
 Derive `<type>` from changed paths (`test/` → `test`, `docs/` or `*.md` → `docs`, `*.tf`/`manifests/` → `chore`, source → `feat`/`fix`, rename/move → `refactor`). Summary ≤72 chars, lowercase after colon, no trailing period. **Never add body, footer, or `Co-Authored-By`** (see `.claude/rules/common/git-workflow.md`). Exit — user commits manually, re-invokes `/plan-run <slug>`.
 
-On **Proceed anyway** → continue to step 2. Append note to phase's `DISCUSSION.md`: *"Phase <NN> started with dirty worktree — prior uncommitted changes mixed in."*
+On **Proceed anyway** → continue to step 2. Append note to phase's `PHASE.md ## Decisions`: *"Phase <NN> started with dirty worktree — prior uncommitted changes mixed in."*
 On **Abort** → exit.
 
 ### 2. Read context bundle
 
-- Top-level `CONTEXT.md` + `GOAL.md` (background)
-- Phase's `CONTEXT.md` + `GOAL.md` + `PLAN.md` (implementer brief — multi-phase)
-- Single-phase: top-level `PLAN.md ## Steps`
+- Root: `PRD.md` + `TECH-SPEC.md` (background, acceptance, architecture, dependencies)
+- `ROADMAP.md` — phase table + H2 for target phase
+- Phase's `PHASE.md` (full implementer brief)
 
 ### 3. Mark phase wip
 
-Set target phase `status: wip` in top-level `PLAN.md` phase table AND in phase `GOAL.md` frontmatter.
+Set target phase `status: wip` in `ROADMAP.md ## Phases` table AND in `PHASE.md` frontmatter.
 
 ### 3a. Pre-implementer recon (parallel subagent fan-out, after /clear)
 
-After `/clear` the session lost conversation context. Phase `PLAN.md` has the steps, but implementer benefits from a fresh architecture map + current-docs refresh. Main session fans out in a single message, parallel `Task` calls (only what applies):
+After `/clear` the session lost conversation context. `PHASE.md` has the steps, but implementer benefits from a fresh architecture map + current-docs refresh. Main session fans out in a single message, parallel `Task` calls (only what applies):
 
-- `code-explorer` — when phase touches existing code beyond files named in PLAN.md `## Changes`. Brief: *"For <slug> phase <NN>: trace call graph around <files touched>. Confirm patterns still current, flag drift from plan assumptions."* Skip if PLAN.md `## Changes` lists exact new-file-creation only.
-- `docs-lookup` — when phase `## Dependencies` added a new package OR PLAN.md Steps reference specific library APIs. Brief: *"Fetch current docs for: <package + API>. Return canonical usage pattern."*
+- `code-explorer` — when phase touches existing code beyond files named in PHASE.md `## Files Changed`. Brief: *"For <slug> phase <NN>: trace call graph around <files touched>. Confirm patterns still current, flag drift from plan assumptions."* Skip if PHASE.md `## Files Changed` lists exact new-file-creation only.
+- `docs-lookup` — when `TECH-SPEC.md ## Dependencies` added a new package OR PHASE.md Steps reference specific library APIs. Brief: *"Fetch current docs for: <package + API>. Return canonical usage pattern."*
 
 **Skip entirely when:** phase is brand-new-files-only scaffold with no existing-code touch + no new deps. Otherwise run.
 
@@ -103,10 +101,8 @@ Pass findings into implementer brief at step 4 under **Recon findings** heading 
 
 Detect stack (list `.claude/agents/`). Dispatch matching `<stack>-implementer` via Task, with:
 - **Recon findings** (from step 3a, or "skipped — scaffold-only phase")
-- **Phase brief:**
-  - Multi-phase → full `phase-NN-*/PLAN.md` + `GOAL.md` + `CONTEXT.md`
-  - Single-phase → top-level `PLAN.md ## Steps` inline
-- Top-level `CONTEXT.md` + `GOAL.md` content
+- **Phase brief:** full `phase-NN-*/PHASE.md` (all sections — Goal, Acceptance, Steps, Files Changed, System Workflow, Production Checklist, Decisions, Verify, Done When)
+- Root: `PRD.md` (why, goal, acceptance, scope, constraints) + `TECH-SPEC.md` (architecture, dependencies, production checklist, risks)
 - Production-readiness mandate (see below)
 - Dependency anti-circumvention line (see below)
 - Phase-discovery cap: *"You may ask at most ONE `AskUserQuestion` call with ≤2 questions mid-phase. If more are needed, the phase is mis-sized — stop, report back, orchestrator routes to `/plan-discuss <slug> phase-NN` to split or refine."*
@@ -115,10 +111,10 @@ Detect stack (list `.claude/agents/`). Dispatch matching `<stack>-implementer` v
 > "Do not introduce `TODO(prod)` markers, hardcoded env values, or dev-only branches without prod counterpart. Load env values via config layer. Avoid anti-patterns in `.claude/rules/common/production-readiness.md` — use correct designs from `.claude/skills/production-patterns/SKILL.md`. If any step ambiguous about prod behavior, stop and ask."
 
 **Dependency anti-circumvention line (verbatim):**
-> "Top-level `PLAN.md ## Dependencies` is the exhaustive list of packages you may install at the exact pinned versions shown. Do NOT silently `npm install` / `pip install` / `go get` anything else. If you need a package not listed, STOP, run the dependency-approval workflow from `.claude/rules/common/dependency-approval.md` + `.claude/skills/dependency-selection/SKILL.md`, and surface a fresh `AskUserQuestion` before installing."
+> "`TECH-SPEC.md ## Dependencies` is the exhaustive list of packages you may install at the exact pinned versions shown. Do NOT silently `npm install` / `pip install` / `go get` anything else. If you need a package not listed, STOP, run the dependency-approval workflow from `.claude/rules/common/dependency-approval.md` + `.claude/skills/dependency-selection/SKILL.md`, and surface a fresh `AskUserQuestion` before installing."
 
 If implementer hits discovery cap:
-- Mark `status: blocked` in `PLAN.md` + `GOAL.md` with reason *"phase too large — needs refine"*
+- Mark `status: blocked` in `ROADMAP.md` + `PHASE.md` with reason *"phase too large — needs refine"*
 - Skip reviewers
 - `AskUserQuestion`: `Refine via /plan-discuss <slug> phase-NN` · `Answer inline and proceed` · `Abort`
 
@@ -130,9 +126,7 @@ If implementer hits discovery cap:
 
 ### 6. Gather verdicts + append Summary
 
-Append `## Summary` block to the phase brief:
-- Multi-phase → append to `phase-NN-*/PLAN.md` (same file implementer executed against). **Do NOT write Summary into `GOAL.md`** — GOAL stable across refines.
-- Single-phase → append to top-level `PLAN.md ## Summary`.
+Append `## Summary` block to `phase-NN-*/PHASE.md` (same file implementer executed against). Uniform for single- and multi-phase plans — `/plan-discuss` always produces a `PHASE.md`, Summary goes there. **Do NOT mutate other `PHASE.md` sections** (Goal/Acceptance/Steps/Decisions stable across re-runs).
 
 Summary schema (ALL fields required — this is the whole-picture record future sessions read after `/clear`):
 
@@ -142,13 +136,13 @@ Summary schema (ALL fields required — this is the whole-picture record future 
 **Date:** YYYY-MM-DD
 **What just happened:** <2-3 sentences — what implementer built, what reviewers found, what shipped>
 **Whole picture:**
-- Fits top-level goal: <one-line link to GOAL.md Done-when>
+- Fits top-level goal: <one-line link to PRD.md ## Acceptance criterion>
 - Prior phases: <list done phase titles, or "—">
-- Next phases unblocked: <from phase table, or "—">
+- Next phases unblocked: <from ROADMAP.md phase table, or "—">
 - Plan progress: <X of Y phases done>
 
 ### System workflow (post-execution — reflects actual files shipped)
-<!-- Re-render or refine the phase PLAN.md `## System workflow` diagram with ACTUAL file paths + function names introduced/modified this phase. If implementation deviated from plan diagram, update here — not in PLAN.md steps. -->
+<!-- Re-render or refine the phase PHASE.md `## System Workflow` diagram with ACTUAL file paths + function names introduced/modified this phase. If implementation deviated from plan diagram, update here — not in PHASE.md Steps. -->
 ```
 [paste updated ASCII diagram]
 ```
@@ -167,13 +161,13 @@ Summary schema (ALL fields required — this is the whole-picture record future 
 
 ### 7. Update status
 
-- Top-level `PLAN.md` phase table: `Status: done` (or `blocked` on CRITICAL).
-- Phase's `GOAL.md` frontmatter: matching status.
+- `ROADMAP.md ## Phases` table: `status: done` (or `blocked` on CRITICAL).
+- Phase's `PHASE.md` frontmatter: matching status.
 
-### 8. Append DISCUSSION entries
+### 8. Append decision entries
 
-- Top-level `DISCUSSION.md` for any deviation / reviewer finding crossing phase boundaries.
-- Phase's `DISCUSSION.md` for phase-scoped decisions (visible to future `/plan-discuss <slug> phase-NN`).
+- `PRD.md ## Decisions` for any deviation / reviewer finding crossing phase boundaries (changes top-level acceptance, scope, or constraints).
+- Phase's `PHASE.md ## Decisions` for phase-scoped decisions (visible to future `/plan-discuss <slug> phase-NN`).
 
 ### 9. CRITICAL gate
 
@@ -206,7 +200,7 @@ Rules (enforce `.claude/rules/common/git-workflow.md`):
 - **Never run `git push`.** Staging + committing is the endpoint.
 - Multiple unrelated concerns in one phase → print TWO commit suggestions + *"Stage each group separately."*
 
-Append suggested commit line to phase `## Summary` under `suggested commit:` key. Next `/plan-run`'s step 1b dirty-worktree check auto-detects if user skipped committing.
+Append suggested commit line to `PHASE.md ## Summary` under `suggested commit:` key. Next `/plan-run`'s step 1b dirty-worktree check auto-detects if user skipped committing.
 
 ### 10. Post-phase gate (skip on CRITICAL / blocked)
 
@@ -214,7 +208,7 @@ Append suggested commit line to phase `## Summary` under `suggested commit:` key
 
 ```
 ═══ Phase <NN> shipped: <slug> ═══
-<paste `## Summary` block just written to phase PLAN.md — What just happened, Whole picture, System workflow diagram, Files, Commits, Deviations, Reviewer verdicts>
+<paste `## Summary` block just written to phase PHASE.md — What just happened, Whole picture, System workflow diagram, Files, Commits, Deviations, Reviewer verdicts>
 ```
 
 Prepend reminder: *"Commit the phase (see command above) before Next phase — step 1b of next `/plan-run` halts on dirty worktree."*
@@ -244,26 +238,26 @@ options:
 
 ### 11. Plan complete
 
-If no `todo` phases remain, replace both "Next phase" options with `"Plan complete — close it"` (sets top-level `PLAN.md status: done`, no `/clear` suggestion).
+If no `planned` / `todo` phases remain, replace both "Next phase" options with `"Plan complete — close it"` (sets `PRD.md status: done` + `ROADMAP.md` all rows `done`, no `/clear` suggestion).
 
 ## Why /clear between phases (default)
 
-Each phase is **self-contained** by design — a fresh implementer reading only phase `CONTEXT.md` + `GOAL.md` + `PLAN.md` + top-level `CONTEXT.md` + `GOAL.md` + project rules has everything needed. Plan folder bridges state across `/clear`:
+Each phase is **self-contained** by design — a fresh implementer reading only `PHASE.md` + root `PRD.md` + `TECH-SPEC.md` + project rules has everything needed. Plan folder bridges state across `/clear`:
 
-- Top-level `CONTEXT.md` / `GOAL.md` — constraints + success criteria (static)
-- Top-level `DISCUSSION.md` — decisions log (append-only)
-- Top-level `PLAN.md` — phase table with status (always current)
-- Prior phase `PLAN.md ## Summary` — what prior phases shipped
+- `PRD.md` — why/goal/acceptance/scope/constraints + `## Decisions` (append-only log)
+- `TECH-SPEC.md` — architecture, whole-system workflow, dependencies, production checklist (static)
+- `ROADMAP.md` — phase table with status (always current) + high-level phase outcomes
+- Prior `phase-NN-*/PHASE.md ## Summary` — what prior phases shipped
 
 Only loss from `/clear`: conversation history — replayable from the plan folder. Win: full context window for next `/plan-discuss` + implementer + reviewer. Skip `/clear` only when phases tightly coupled (reviewer comparing diffs across phases live).
 
 ## Multi-phase flow (per phase)
 
 ```
-/plan-discuss 03 phase-NN               # finalize phase (NN shortcut for plan ID; interactive — writes GOAL/PLAN/DISCUSSION)
-(review phase PLAN.md, another /plan-discuss round if needed)
+/plan-discuss 03 phase-NN               # finalize phase (NN shortcut for plan ID; interactive — creates phase folder + PHASE.md)
+(review PHASE.md, another /plan-discuss round if needed)
 /clear                                  # fresh context for execution
-/plan-run 03 phase-NN                   # execute; halts with stub guard if PLAN.md missing
+/plan-run 03 phase-NN                   # execute; halts with stub guard if phase folder / PHASE.md missing
 <commit manually>
 /clear
 /plan-discuss 03 phase-(NN+1)           # finalize next phase
@@ -274,12 +268,12 @@ Two `/clear`s per phase (after finalize, after execution). Skip first `/clear` i
 
 ## Parallel waves
 
-Phases sharing `wave:` with satisfied deps can dispatch in parallel (independent implementers, single message with multiple Task calls). All phases in the wave must be finalized (non-stub) before dispatch.
+Phases sharing `wave:` with satisfied deps can dispatch in parallel (independent implementers, single message with multiple Task calls). All phases in the wave must be finalized (PHASE.md present) before dispatch.
 
 ## Related
 
-- `/plan <objective>` — create plan (top-level + phase stubs)
-- `/plan-discuss <slug> [phase-NN]` — interactive iteration (required before /plan-run on stub phase)
+- `/plan <objective>` — create plan (PRD + TECH-SPEC + ROADMAP at root, no phase folders)
+- `/plan-discuss <slug> [phase-NN]` — interactive iteration; `phase-NN` mode creates phase folder + PHASE.md (required before /plan-run)
 - `/plans` — see status (planning + execution progress)
 - `/explain <slug> [phase-NN]` — walkthrough after ship
 - `/grill <slug> [phase-NN]` — quiz after ship

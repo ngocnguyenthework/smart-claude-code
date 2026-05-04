@@ -10,9 +10,9 @@ Model routing: **Opus** plans, **Sonnet** implements and reviews. Main session n
 
 ## Core rule (CRITICAL)
 
-**`/plan` NEVER auto-emits phase-level `GOAL.md`, `PLAN.md`, or `DISCUSSION.md`.** Per phase, it emits **only `CONTEXT.md`** (stub — scope hint + prior-phase deps). Phase finalization is **always interactive** via `/plan-discuss <slug> phase-NN`. Rationale: step-by-step per-phase discussion produces better-sized, better-briefed implementer inputs than one-shot multi-phase generation.
+**`/plan` NEVER creates phase folders.** Bootstrap emits exactly three root files: `PRD.md` + `TECH-SPEC.md` + `ROADMAP.md`. ROADMAP.md holds high-level H2 per-phase sections (one-sentence shippable outcome each) — no folders, no phase files, no step-level detail. Phase folders + `PHASE.md` materialize **only** on `/plan-discuss <slug> phase-NN`. Rationale: step-by-step per-phase discussion produces better-sized, better-briefed implementer inputs than one-shot multi-phase generation.
 
-Top-level is different — `/plan` DOES emit the full top-level big picture: `CONTEXT.md` + `GOAL.md` + `DISCUSSION.md` + `PLAN.md` (phase table). Top-level iteration still goes through `/plan-discuss <slug>` (no phase arg).
+Top-level iteration goes through `/plan-discuss <slug>` (no phase arg) and may touch any of the three root files.
 
 ## When to Use
 
@@ -36,7 +36,7 @@ First-class, no permission required. Used for every gate except plan-mode's firs
 
 | Gate | Question | Options |
 |---|---|---|
-| After planner returns top-level | "Top-level plan ready. Proceed?" | `Approve — start /plan-discuss on phase-01`, `Refine top-level (/plan-discuss <slug>)`, `Abort` |
+| After planner returns top-level (PRD+TECH-SPEC+ROADMAP) | "Plan ready. Proceed?" | `Approve — start /plan-discuss on phase-01`, `Refine top-level (/plan-discuss <slug>)`, `Abort` |
 | After implementer returns | "Run reviewers on the changes?" | `Run <stack>-reviewer`, `+ infra-security-reviewer` *(IaC touched)*, `+ database-reviewer` *(schema touched)*, `Skip review`, `Abort` |
 | After reviewer CRITICAL | "Reviewer blocked with CRITICAL. Next?" | `Send back to implementer`, `Fix manually`, `Accept risk`, `Abort` |
 
@@ -74,48 +74,48 @@ Via Task, with:
 - User's ask verbatim
 - **Recon findings** (from step 1a, or "skipped — trivial ask")
 - Installed implementers/reviewers
-- **Scope directive:** *"Emit top-level `CONTEXT.md` + `GOAL.md` + `DISCUSSION.md` + `PLAN.md`. For each phase, emit ONLY `phase-NN-<name>/CONTEXT.md` stub — NO `GOAL.md`, NO `PLAN.md`, NO `DISCUSSION.md` at phase level. Phase deep-dive is `/plan-discuss`'s job, not yours. If the plan has 1 phase, emit inline `## Steps` in top-level `PLAN.md` — no phase folder needed."*
-- **Discovery budget:** *"MANDATORY `AskUserQuestion` gate before emitting files. 1-2 batched calls, ≤4 questions each. Silent discovery first to eliminate answerable-from-repo questions, but for new feature / new stack / new business logic you MUST confirm tech-stack + versions + system-design + business-invariant + acceptance with the user. Zero-question plan forbidden unless ask is single-file bugfix or typo. Never ping-pong — batch tight."*
-- **Version freshness:** *"Never cite library/framework version from training. Use `docs-lookup` recon report as source of truth; if missing, request it before writing files. Record version + fetch date + source in `DISCUSSION.md`."*
+- **Scope directive:** *"Emit exactly three root files: `PRD.md` (product/why/goal/acceptance/scope/constraints/decisions log) + `TECH-SPEC.md` (architecture/whole-system workflow/existing code/dependencies/production checklist/risks) + `ROADMAP.md` (phase table + per-phase H2 sections — HIGH-LEVEL only, one-sentence shippable outcome each, no step detail). NEVER create `phase-NN-<name>/` folders — phase folders + `PHASE.md` materialize only via `/plan-discuss phase-NN`. Single-phase plans: still emit all three files; ROADMAP has one high-level phase section."*
+- **Discovery budget:** *"MANDATORY `AskUserQuestion` gate BEFORE emitting ANY file. No exceptions — never write `<!-- FILE: -->` block in a response without prior `AskUserQuestion` call in same invocation. 1-2 batched calls, ≤4 questions each. Silent discovery first to eliminate answerable-from-repo questions, but gate itself is never skipped — align requirement with user before any write. For new feature / new stack / new business logic you MUST confirm tech-stack + versions + system-design + business-invariant + acceptance with the user. Zero-question plan forbidden in ALL cases (including single-file bugfix, typo, config flip — ask at minimum 1 confirmation question). Never ping-pong — batch tight."*
+- **Version freshness:** *"Never cite library/framework version from training. Use `docs-lookup` recon report as source of truth; if missing, request it before writing files. Record version + fetch date + source in `PRD.md ## Decisions` initial entry."*
 
-Planner runs silent discovery → optional single batched question → emits top-level artifacts + phase CONTEXT stubs.
+Planner runs silent discovery → mandatory `AskUserQuestion` round(s) → emits three root files.
 
 ### 3. Present top-level and gate on approval
 
-Show top-level `CONTEXT.md` + `GOAL.md` + `PLAN.md` (phase table AND `## System workflow` diagram) unmodified. Before the gate, print a **Whole-picture summary** — terse recap so user sees the entire plan at a glance without scrolling four files:
+Show `PRD.md` + `TECH-SPEC.md` + `ROADMAP.md` unmodified. Before the gate, print a **Whole-picture summary** — terse recap so user sees the entire plan at a glance without scrolling three files:
 
 ```
 ═══ Plan ready: <slug> ═══
 
 ▸ What just happened
-  /plan emitted top-level (CONTEXT, GOAL, DISCUSSION, PLAN) + <N> phase stubs (CONTEXT.md only).
+  /plan emitted PRD.md + TECH-SPEC.md + ROADMAP.md (<N> high-level phase sections). No phase folders yet — each finalizes via /plan-discuss.
 
 ▸ Goal
-  <one-line from GOAL.md Done-when>
+  <one-line from PRD.md ## Goal>
 
 ▸ Shape
   Phases: <N> · Waves: <count> · Stack: <stack> · Agent: <implementer>
   Dependencies: <count new packages | "reuses existing stack">
 
-▸ Phase preview (each is a stub — finalize via /plan-discuss before /plan-run)
-  | # | Phase | Wave | Depends | Narrow goal (from CONTEXT.md stub) |
-  |---|-------|------|---------|-------------------------------------|
-  | 01 | <name> | 1 | — | <1-sentence goal> |
-  | 02 | <name> | 2 | 01 | <1-sentence goal> |
+▸ Phase preview (from ROADMAP.md H2 sections — high-level, finalize via /plan-discuss before /plan-run)
+  | # | Phase | Wave | Depends | Ships (one-sentence) |
+  |---|-------|------|---------|----------------------|
+  | 01 | <name> | 1 | — | <ships line from ROADMAP H2> |
+  | 02 | <name> | 2 | 01 | <ships line from ROADMAP H2> |
   | …  | …      | … | …  | … |
 
-▸ Top-level system workflow
-<paste `## System workflow` diagram from PLAN.md verbatim>
+▸ Whole-system workflow
+<paste `## System Workflow` diagram from TECH-SPEC.md verbatim>
 
 ▸ Recommended next agent
-  <agent name> — <one-line why from PLAN.md Recommended Next Agent>
+  <agent name> — <one-line why from planner's Recommended Next Agent>
 
 ▸ Next
-  /plan-discuss <slug> phase-01    ← finalize phase 1 (writes GOAL+PLAN+DISCUSSION)
-  /plan-run     <slug> phase-01    ← halts on stub until /plan-discuss done
+  /plan-discuss <slug> phase-01    ← finalize phase 1 (writes phase-01-<name>/PHASE.md + creates folder)
+  /plan-run     <slug> phase-01    ← halts until /plan-discuss done
 ```
 
-For single-phase plans, replace "Phase preview" table with `▸ Steps preview` listing first 5 numbered steps from inline `## Steps`, and replace Next block with `/plan-discuss <slug>` + `/plan-run <slug>`.
+For single-phase plans, Next block becomes `/plan-discuss <slug>` (finalizes lone phase — creates `phase-01-<name>/PHASE.md`) + `/plan-run <slug>`.
 
 Then approval gate:
 
@@ -137,9 +137,9 @@ Do NOT accept free-text "yes"/"proceed" — always surface the structured gate.
 
 ### 3a. Dependency Approval Gate (CRITICAL — before any implementer dispatch)
 
-Top-level `PLAN.md` MUST include `## Dependencies` section per `rules/common/dependency-approval.md`. Enforcement:
+`TECH-SPEC.md` MUST include `## Dependencies` section per `rules/common/dependency-approval.md`. Enforcement:
 
-1. **Missing section** → reject + re-dispatch planner: *"Missing `## Dependencies` — declare new packages or state `_None — reuses existing stack._`."*
+1. **Missing section** → reject + re-dispatch planner: *"Missing `## Dependencies` in TECH-SPEC.md — declare new packages or state `_None — reuses existing stack._`."*
 2. **`_None — reuses existing stack._`** → skip gate.
 3. **Lists new packages** → per-package `AskUserQuestion` (batch ≤3 tightly-coupled):
    ```
@@ -151,30 +151,29 @@ Top-level `PLAN.md` MUST include `## Dependencies` section per `rules/common/dep
      - "Skip this capability"
    ```
 4. Non-approval → re-dispatch planner with choice. Revised plan re-enters step 3.
-5. Approval → append entry to top-level `DISCUSSION.md` (date, package, version). Proceed.
-6. **Anti-circumvention:** Implementer dispatch in step 5 (via `/plan-run`) appends: *"`## Dependencies` in `PLAN.md` is exhaustive at pinned versions. Never install unapproved. STOP + `AskUserQuestion` if need arises."*
+5. Approval → append entry to `PRD.md ## Decisions` (date, package, version). Proceed.
+6. **Anti-circumvention:** Implementer dispatch in step 5 (via `/plan-run`) appends: *"`## Dependencies` in `TECH-SPEC.md` is exhaustive at pinned versions. Never install unapproved. STOP + `AskUserQuestion` if need arises."*
 
 ### 4. Hand off to `/plan-discuss` per phase
 
 After top-level approved, the orchestrator does NOT dispatch the implementer directly. Instead, print the handoff banner:
 
 ```
-Top-level plan ready at .claude/plans/<slug>/.
-Phase 01 is a stub — only CONTEXT.md written.
+Plan ready at .claude/plans/<slug>/ (PRD.md + TECH-SPEC.md + ROADMAP.md).
+No phase folders yet — each phase finalizes via /plan-discuss.
 
 Next:
-  /plan-discuss <slug> phase-01    ← interactive Q&A to finalize phase 01
-                                      (writes GOAL.md + PLAN.md + DISCUSSION.md)
-  /plan-run <slug> phase-01        ← execute (halts if stub — requires /plan-discuss first)
+  /plan-discuss <slug> phase-01    ← interactive Q&A (creates phase-01-<name>/PHASE.md)
+  /plan-run <slug> phase-01        ← execute (halts until PHASE.md exists)
 
-Recommended: run phases one at a time. /clear between phases keeps context fresh.
+Recommended: finalize + run phases one at a time. /clear between phases keeps context fresh.
 ```
 
-For **single-phase plans** (inline `## Steps`), skip phase handoff — print instead:
+For **single-phase plans**:
 ```
 Single-phase plan. Next:
-  /plan-discuss <slug>             ← iterate top-level interactively (optional)
-  /plan-run <slug>                 ← execute the step list
+  /plan-discuss <slug>             ← finalize lone phase (creates phase-01-<name>/PHASE.md)
+  /plan-run <slug>                 ← execute PHASE.md steps
 ```
 
 `/plan` exits. User drives remainder.
@@ -185,7 +184,7 @@ Single-phase plan. Next:
 
 ## Intent → Agent Mapping
 
-The planner classifies intent at top-level and records a `Recommended Next Agent` section in `PLAN.md`. Mapping:
+The planner classifies intent at top-level and records a `Recommended Next Agent` section in `TECH-SPEC.md`. Mapping:
 
 | Plan intent | Primary agent | Fallback |
 |---|---|---|
@@ -235,6 +234,15 @@ If intent is refactor, review, investigation, perf, docs, or architecture, the p
   - Done when: terraform plan shows create-only, no replaces
 ```
 
+## Red-flag scan file targets
+
+The red-flag scan in step 3 (pre-approval) reads across all three root files:
+- `PRD.md` — scope, acceptance, decisions
+- `TECH-SPEC.md` — architecture, dependencies, production checklist, system workflow
+- `ROADMAP.md` — phase list (high-level)
+
+Diagram flag points at `TECH-SPEC.md ## System Workflow` (whole-system, ≤40 lines). ROADMAP phase sections are intentionally high-level — **do not** flag them for missing diagrams; per-phase diagrams belong in `PHASE.md` after `/plan-discuss`.
+
 ## Production-Readiness Mandate (CRITICAL)
 
 Every plan — and every implementation via `/plan-run` — must be **production-ready on first pass**. No `TODO(prod)` markers, no hardcoded env values, no "wire prod later."
@@ -242,19 +250,21 @@ Every plan — and every implementation via `/plan-run` — must be **production
 Enforcement points:
 
 1. **Planner dispatch (step 2)** — append verbatim:
-   > "Production-readiness non-negotiable. Top-level plan must cover env-driven config, secret handling, observability, rollout/rollback, avoid anti-patterns on first pass. Read `.claude/rules/common/production-readiness.md` + `.claude/skills/production-patterns/SKILL.md`. No `TODO(prod)`."
+   > "Production-readiness non-negotiable. `TECH-SPEC.md` must cover env-driven config, secret handling, observability, rollout/rollback, avoid anti-patterns on first pass. Read `.claude/rules/common/production-readiness.md` + `.claude/skills/production-patterns/SKILL.md`. No `TODO(prod)`."
    >
-   > "Dependency approval non-negotiable. Top-level `PLAN.md` MUST include `## Dependencies` section with 2+ alternatives + stdlib baseline per new dep, or `_None — reuses existing stack._`. Read `.claude/rules/common/dependency-approval.md` + `.claude/skills/dependency-selection/SKILL.md`."
+   > "Dependency approval non-negotiable. `TECH-SPEC.md` MUST include `## Dependencies` section with 2+ alternatives + stdlib baseline per new dep, or `_None — reuses existing stack._`. Read `.claude/rules/common/dependency-approval.md` + `.claude/skills/dependency-selection/SKILL.md`."
 
 2. **Top-level red-flag scan (step 3, pre-approval)** — grep + semantic read. On hit, loop back with flags quoted.
 
+   **Gate-skip flag (CRITICAL):** planner response contains `<!-- FILE: -->` blocks but transcript shows no `AskUserQuestion` call earlier in same invocation. On hit → reject + re-dispatch: *"No requirement-alignment questions asked. Run `AskUserQuestion` first, then re-emit files."* Zero tolerance — even trivial asks require at least 1 confirmation question.
+
    **String flags:** `TODO(prod)`, `FIXME(prod)`, `handle in prod later`, `wire up prod`, hardcoded URLs/keys/buckets/conn-strings, dev-only branches with no prod counterpart.
 
-   **Version-freshness flags:** any package in `## Dependencies` without source/date line in `DISCUSSION.md` (e.g. "Fetched YYYY-MM-DD from npm"); any version number older than current stable major of that package; `<fetch-latest>` placeholder still present; framework marketing-major mentioned in prose (e.g. "Next.js 15", "React 18") without matching fetched pin. On hit → reject + re-dispatch planner with *"Run `docs-lookup` for <packages>, rewrite pins + DISCUSSION.md source lines."*
+   **Version-freshness flags:** any package in `TECH-SPEC.md ## Dependencies` without source/date line in `PRD.md ## Decisions` (e.g. "Fetched YYYY-MM-DD from npm"); any version number older than current stable major of that package; `<fetch-latest>` placeholder still present; framework marketing-major mentioned in prose (e.g. "Next.js 15", "React 18") without matching fetched pin. On hit → reject + re-dispatch planner with *"Run `docs-lookup` for <packages>, rewrite pins + PRD.md Decisions source lines."*
 
-   **Dependency flags:** missing `## Dependencies`, package named in body but not section, no alternatives row, duplicates manifest dep, stdlib-feasible via library, `^`/`~`/`latest` version.
+   **Dependency flags:** missing `## Dependencies` in TECH-SPEC.md, package named in body but not section, no alternatives row, duplicates manifest dep, stdlib-feasible via library, `^`/`~`/`latest` version.
 
-   **Diagram flags:** missing `## System workflow` section in top-level `PLAN.md`, empty code fence, abstract boxes only ("Service A" / "DB"), no named files/functions, >40 lines (too dense to scan).
+   **Diagram flags:** missing `## System Workflow` section in `TECH-SPEC.md`, empty code fence, abstract boxes only ("Service A" / "DB"), no named files/functions, >40 lines (too dense to scan).
 
    **Architectural anti-patterns:** server-proxied upload/download, inline `await sendEmail`, long work in HTTP handler, `setTimeout` for cron, N+1, offset pagination on large tables, missing idempotency key, missing index, in-memory cache on multi-replica, `LIKE '%q%'` search, CORS `*` + credentials, frontend-only auth, public endpoint no rate limit, auto-increment IDs in URLs, `latest` image tag, missing timeout/retry/circuit-breaker, single-step destructive migration.
 
@@ -268,36 +278,28 @@ Spike exception: user says "throwaway prototype" → planner records trade-off i
 
 ```
 .claude/plans/<NN>-<slug>/        NN = zero-padded 2-digit sequence (01, 02, ...)
-├── CONTEXT.md            written by /plan — why + constraints + existing code
-├── GOAL.md               written by /plan — big-picture done-when + non-negotiables
-├── DISCUSSION.md         written by /plan — initial decisions log (append-only)
-├── PLAN.md               written by /plan — overview + phase table (or inline ## Steps)
-├── phase-01-<name>/      multi-phase only
-│   ├── CONTEXT.md        STUB written by /plan — phase scope + deps + context hints
-│   ├── GOAL.md           ← written by /plan-discuss (interactive)
-│   ├── PLAN.md           ← written by /plan-discuss (interactive) — implementer brief
-│   └── DISCUSSION.md     ← written by /plan-discuss (interactive) — Q&A log
-└── phase-02-<name>/
-    └── CONTEXT.md        (stub; remaining three files filled per-phase by /plan-discuss)
+├── PRD.md            written by /plan — product: why, users, goal, acceptance, scope, constraints, ## Decisions (ADR log)
+├── TECH-SPEC.md      written by /plan — architecture, whole-system workflow, existing code, dependencies, production checklist, risks
+├── ROADMAP.md        written by /plan — phase table + high-level per-phase H2 sections (one-sentence "Ships:" outcome each)
+├── phase-01-<name>/  CREATED BY /plan-discuss phase-01 (not by /plan)
+│   └── PHASE.md      written by /plan-discuss — goal, steps, files, workflow, production, decisions, verify, done-when, summary
+└── phase-02-<name>/  same shape — created lazily per /plan-discuss invocation
+    └── PHASE.md
 ```
 
 **Plan ID = `NN-<slug>`.** NN derived at `/plan` creation time: `max(NN over .claude/plans/*) + 1`, zero-padded to 2 digits (3 if any existing NN ≥ 99). Gaps from deletes are NOT backfilled — sequence monotonic. Mirrors phase pattern (`phase-NN-<name>/`) so users mention plans by number too: `/plan-run 03` instead of `/plan-run 03-add-password-reset`.
 
-**Single-phase plans** skip phase folders — `PLAN.md` holds `## Steps` inline, `/plan-run` executes directly.
+**Single-phase plans** emit the same three root files. ROADMAP.md contains a single high-level phase section. `/plan-discuss <slug>` promotes the lone phase into `phase-01-<name>/PHASE.md`; `/plan-run <slug>` reads it.
 
-Top-level files:
-- **CONTEXT.md** — why, constraints (perf/security/deadlines), existing code refs, stakeholders. Written once.
-- **GOAL.md** — overall success criteria + non-negotiables. Anchors every phase. Rarely changes.
-- **DISCUSSION.md** — append-only decisions log. `/plan-discuss <slug>` appends here. Reviewer findings that shift direction append here.
-- **PLAN.md** — actionable. Frontmatter (`slug`, `status`, `created`, `stack`, `agent`). Sections: Overview, Acceptance, Dependencies, Phases (table) OR Steps (inline when 1 phase), Next.
+Root files:
+- **PRD.md** — product requirements. Frontmatter (`slug`, `status`, `created`, `stack`, `agent`). Sections: Why, Users/Callers, Goal, Acceptance, Scope (In/Out), Constraints, Decisions (append-only ADR log — replaces legacy DISCUSSION.md).
+- **TECH-SPEC.md** — technical spec. Sections: Architecture, System Workflow (MANDATORY ASCII diagram, whole-system, ≤40 lines), Existing Code, Dependencies (table + alternatives + existing-dep reuse check), Production Checklist, Risks & Mitigations.
+- **ROADMAP.md** — phase roadmap. Sections: Phases (table: # · title · wave · depends · status), per-phase H2 sections (one-sentence `Ships:` outcome + `Depends:`), Next. **High-level only** — no step detail, no file lists, no workflow diagrams. Details deferred to PHASE.md via `/plan-discuss`.
 
-Per-phase files (multi-phase only):
-- **CONTEXT.md** (stub, by `/plan`) — narrow phase goal hint + dep numbers + 1-3 bullets naming reusable code / prior-phase outputs relevant to this phase. Status: `planning`. ~15-20 lines cap.
-- **GOAL.md** (by `/plan-discuss`) — phase goal + acceptance + deps + wave + agent. Status flipped `planning → planned` on /plan-discuss finalize, `wip → done` by `/plan-run`.
-- **PLAN.md** (by `/plan-discuss`) — concrete steps, files touched, production checklist, verify, done-when. What `/plan-run` reads. `## Summary` appended by `/plan-run` after execution.
-- **DISCUSSION.md** (by `/plan-discuss`) — phase-scoped Q&A log + decisions. Started at finalize, appended by future `/plan-discuss <slug> phase-NN` runs and by `/plan-run`.
+Per-phase file (multi-phase — written by `/plan-discuss`):
+- **PHASE.md** — frontmatter (`plan`, `status`, `depends`, `wave`, `agent`). Sections: Goal, Acceptance, Steps, Files Changed, System Workflow (phase-scoped ASCII, ≤30 lines), Production Checklist, Decisions (Q&A log from `/plan-discuss` rounds + `/plan-run` deviations), Verify, Done When, Summary (appended by `/plan-run` post-execution).
 
-Status values (top-level + phase `GOAL.md`): `planning` → `planned` (deep-discussed) → `wip` → `done` (or `blocked`).
+Status values (PRD.md + PHASE.md frontmatter + ROADMAP.md phase-table): `planning` → `planned` (finalized via /plan-discuss) → `wip` → `done` (or `blocked`).
 `wave:` groups phases runnable in parallel once deps satisfied.
 Slug: kebab-case of objective (first 6 words, alphanumeric + hyphens). Folder = `<NN>-<slug>` (see Plan ID above).
 
@@ -318,9 +320,9 @@ Resolved name (full `NN-slug`) becomes `<slug>` in all downstream prompts/banner
 | Command | Purpose |
 |---|---|
 | `/plans` | List all plan folders + status (planning + execution progress). |
-| `/plan-discuss <slug>` | Interactive Q&A for top-level `CONTEXT` / `GOAL` / `DISCUSSION` / `PLAN`. Updates in place. |
-| `/plan-discuss <slug> phase-NN` | Interactive Q&A to **finalize** a phase — writes phase `GOAL.md` + `PLAN.md` + `DISCUSSION.md` from the `CONTEXT.md` stub. Required before `/plan-run` can execute that phase. |
-| `/plan-run <slug> [phase-NN]` | Implementer + auto-reviewer; updates phase-table status + appends Summary. Halts on stub phase — prompts `/plan-discuss` first. |
+| `/plan-discuss <slug>` | Interactive Q&A for root `PRD.md` / `TECH-SPEC.md` / `ROADMAP.md`. Updates in place. |
+| `/plan-discuss <slug> phase-NN` | Interactive Q&A to **materialize** a phase — creates `phase-NN-<name>/` folder and writes `PHASE.md` from the ROADMAP H2 Ships outcome. Required before `/plan-run` can execute that phase. |
+| `/plan-run <slug> [phase-NN]` | Implementer + auto-reviewer; updates ROADMAP phase-table status + appends Summary to PHASE.md. Halts when phase folder / PHASE.md missing — prompts `/plan-discuss` first. |
 | `/explain <slug> [phase-NN]` | Walkthrough of files touched by a done phase. |
 | `/grill <slug> [phase-NN]` | Quiz on a done phase — pressure-tests mental model. |
 

@@ -80,7 +80,7 @@ Every feature follows this shape. Each phase has one clear output that becomes t
 9. /learn                                          # optional — extract reusable pattern
 ```
 
-**One phase per conversation (default).** Plan folder (`.claude/plans/<slug>/`) persists across `/clear`. Each phase file is self-contained — a fresh implementer reading `CONTEXT.md` + the phase file + project rules has everything needed. The trade is: lose conversation history, gain a full context window for the next implementer + reviewer pass. Skip `/clear` only when phases are tightly coupled (e.g., reviewing diffs across two phases live).
+**One phase per conversation (default).** Plan folder (`.claude/plans/<slug>/`) persists across `/clear`. Each `PHASE.md` is self-contained — a fresh implementer reading `PHASE.md` + root `PRD.md` + `TECH-SPEC.md` + project rules has everything needed. The trade is: lose conversation history, gain a full context window for the next implementer + reviewer pass. Skip `/clear` only when phases are tightly coupled (e.g., reviewing diffs across two phases live).
 
 **Effective prompt:**
 ```

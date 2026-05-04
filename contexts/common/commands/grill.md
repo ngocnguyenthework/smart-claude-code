@@ -26,11 +26,11 @@ Pairs with `/plan-run`: after a phase finishes, `/grill <slug> phase-NN` pressur
 | Form | Reads |
 |---|---|
 | `<path>` | The file/folder. Cap 2 files / 500 lines — if larger, ask user to narrow. |
-| `<plan>` | Resolve per slug resolver. `.claude/plans/<NN-slug>/PLAN.md` → phase table → highest-numbered phase with `status: done` → that phase file's `## Summary` → `files touched:` list. |
-| `<plan> phase-NN` | That specific phase's Summary `files touched:`. Error if phase not `done`. |
+| `<plan>` | Resolve per slug resolver. `.claude/plans/<NN-slug>/ROADMAP.md ## Phases` table → highest-numbered phase with `status: done` → that phase's `PHASE.md ## Summary` → `files touched:` list. |
+| `<plan> phase-NN` | That specific phase's `PHASE.md ## Summary` → `files touched:`. Error if phase not `done`. |
 | `last` | Files from the most recent implementer report in the current session. |
 
-For plan modes, also read PLAN.md `## Acceptance` and the phase's `## Goal` — questions hook into stated acceptance criteria, not random invariants.
+For plan modes, also read `PRD.md ## Acceptance` and the phase's `PHASE.md ## Goal` — questions hook into stated acceptance criteria, not random invariants.
 
 ### Question generation
 
@@ -38,7 +38,7 @@ Claude generates **3-4 questions** drawn from the actual code + plan context:
 
 - **Invariants** — "what breaks if `<X>` is null / empty / duplicate?"
 - **Edge cases** — "concurrent request to this endpoint — what happens?"
-- **Design choices** — "why this approach over `<alternative>`?" (especially trade-offs noted in `DISCUSSION.md`)
+- **Design choices** — "why this approach over `<alternative>`?" (especially trade-offs noted in `PRD.md ## Decisions` / `PHASE.md ## Decisions`)
 - **Failure modes** — "if `<dependency>` times out, what does the user see?"
 - **Acceptance hooks** (plan mode only) — "phase Acceptance says `<criterion>` — which line enforces it?"
 

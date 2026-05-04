@@ -39,7 +39,8 @@ This skill is the executable companion to `rules/common/dependency-approval.md`.
 ├─────────────────────────────────────────────────┤
 │  5. ON APPROVAL                                 │
 │     Pin exact version · add manifest comment    │
-│     record the decision in plan DISCUSSION.md   │
+│     record in PRD.md ## Decisions +             │
+│     add to TECH-SPEC.md ## Dependencies table   │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -157,7 +158,7 @@ AskUserQuestion({
 
 - **Pin exact version** in the manifest (`"dayjs": "1.11.10"` — not `^1.11.10`). Bumps later go through a fresh review, not a silent `npm update`.
 - **One-line manifest comment** if the package's purpose is not obvious from name alone. (Some manifests support comments — `package.json` via a `// ...` key is tolerated by most tooling but not standard; prefer a code comment at the import site if the manifest format is strict JSON.)
-- **Record the decision** in the plan's `DISCUSSION.md` (if a plan exists): date, chosen package, alternatives considered, trade-off. This is how future-you remembers why `pkg-a` beat `pkg-b`.
+- **Record the decision** in the plan's `PRD.md ## Decisions` (ADR-style, dated, append-only) AND add the package to `TECH-SPEC.md ## Dependencies` table with pinned version + alternatives considered + trade-off. This is how future-you remembers why `pkg-a` beat `pkg-b`.
 - **Check license header** — add to `LICENSES-THIRD-PARTY.md` / attribution file if the project tracks that.
 
 ## Batching Approvals
@@ -190,7 +191,7 @@ Then a single `AskUserQuestion` with the batch.
 
 ### With `/plan` orchestrator
 
-The planner emits a `## Dependencies` section in `PLAN.md` listing every new dep the plan introduces, with the rubric scores inline. The orchestrator reads that section and gates approval **before** dispatching the implementer — implementers never install unapproved deps.
+The planner emits a `## Dependencies` section in `TECH-SPEC.md` listing every new dep the plan introduces, with the rubric scores inline. The orchestrator reads that section and gates approval **before** dispatching the implementer — implementers never install unapproved deps.
 
 ### With planner agent
 
