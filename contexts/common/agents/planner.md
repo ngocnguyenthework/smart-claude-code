@@ -295,7 +295,7 @@ No user gate on this — the decision is mechanical. Phase count should emerge f
 
 **Every plan MUST produce production-ready code on first pass.** No `TODO(prod)` scaffolding. If a step can't ship to prod as written, plan is not done — complete now or split into explicit phase with concrete tasks.
 
-**Read first:** `.claude/rules/common/production-readiness.md` (anti-pattern catalog) + `.claude/skills/production-patterns/SKILL.md` (correct designs with code). Reference both when planning.
+**Read first:** `.claude/rules/common/production-readiness.md` (anti-pattern catalog) + `.claude/skills/production-patterns/SKILL.md` (correct designs with code — present when frontend/nestjs/fastapi context installed; skip if devops-only). Reference both when planning.
 
 Mandatory production concerns:
 
@@ -637,7 +637,7 @@ Check points:
 - Heavy SDK (>10MB) for 3-call integration where thin HTTP client suffices
 - License incompatibility (GPL/AGPL/SSPL pulled into proprietary code)
 
-**Architectural anti-patterns (reject + replan — see `rules/common/production-readiness.md` + `skills/production-patterns/`):**
+**Architectural anti-patterns (reject + replan — see `rules/common/production-readiness.md` + `skills/production-patterns/` if installed):**
 - File upload proxied through server → presigned PUT URL (client direct → S3)
 - File download streamed through server → presigned GET URL or CDN signed URL
 - `await sendEmail()` inline in HTTP handler → enqueue to worker queue (SQS / BullMQ / Celery)
@@ -670,10 +670,10 @@ After top-level plan, classify **primary intent** and name agent best suited. Yo
 |---|---|---|
 | Build / add feature / scaffold / implement | `fastapi-implementer` / `nestjs-implementer` / `frontend-implementer` / `devops-implementer` | Pick by stack; check `.claude/agents/` for installed. |
 | Fix failing build / type errors | `build-error-resolver` (stack-specific) | Minimal diffs, no architectural edits. |
-| Remove dead code / consolidate | `refactor-cleaner` | Runs knip / depcheck / ts-prune. |
+| Remove dead code / consolidate | `refactor-cleaner` | Runs knip / depcheck / ts-prune. *(Ships with frontend/nestjs/fastapi.)* |
 | Review existing code | `<stack>-reviewer` or `code-reviewer` | Stack-specific when exists. |
 | Docs / README / codemap | `doc-updater` | Generates from actual code. |
-| Performance | `performance-optimizer` | Profiling + targeted fixes. |
+| Performance | `performance-optimizer` | Profiling + targeted fixes. *(Ships with frontend/nestjs/fastapi.)* |
 | Architecture decision | `architect` / `aws-architect` | Design output, not code. |
 | Database schema / migration | `database-reviewer` + stack implementer | Reviewer first for schema, implementer for migration. |
 | IaC security audit | `infra-security-reviewer` | Before infra deploy. |

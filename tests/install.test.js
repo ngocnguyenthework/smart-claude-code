@@ -89,6 +89,45 @@ test('--context fastapi copies FastAPI agent but not NestJS agent', () => {
   }
 });
 
+test('--exclude-commands skips named slash commands but keeps the rest', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall([
+      '--context', 'frontend',
+      '--dir', tmpDir,
+      '--exclude-commands', 'plan,plans,plan-run,plan-discuss',
+    ]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const cmds = path.join(tmpDir, '.claude', 'commands');
+    assert.ok(!fs.existsSync(path.join(cmds, 'plan.md')), 'plan must be excluded');
+    assert.ok(!fs.existsSync(path.join(cmds, 'plans.md')), 'plans must be excluded');
+    assert.ok(!fs.existsSync(path.join(cmds, 'plan-run.md')), 'plan-run must be excluded');
+    assert.ok(!fs.existsSync(path.join(cmds, 'plan-discuss.md')), 'plan-discuss must be excluded');
+    assert.ok(fs.existsSync(path.join(cmds, 'do.md')), 'unrelated commands stay');
+    assert.ok(fs.existsSync(path.join(cmds, 'code-review.md')), 'unrelated commands stay');
+    assert.ok(fs.existsSync(path.join(tmpDir, '.claude', 'agents', 'planner.md')), 'agents not affected');
+    assert.match(result.stdout, /Excluded commands:/);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--no-plan preset excludes the /plan family', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'frontend', '--dir', tmpDir, '--no-plan']);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const cmds = path.join(tmpDir, '.claude', 'commands');
+    for (const name of ['plan', 'plans', 'plan-run', 'plan-discuss']) {
+      assert.ok(!fs.existsSync(path.join(cmds, `${name}.md`)), `${name} must be excluded by --no-plan`);
+    }
+    assert.ok(fs.existsSync(path.join(cmds, 'do.md')), 'unrelated commands stay');
+    assert.ok(fs.existsSync(path.join(tmpDir, '.claude', 'agents', 'planner.md')), 'planner agent unaffected');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test('--context fastapi copies only Python hook scripts, not JS/TS ones', () => {
   const tmpDir = mkTmp();
   try {
@@ -243,7 +282,7 @@ test('existing files are skipped unless --force is set', () => {
   }
 });
 
-test('--context common copies common-README.md, INTERNALS.md, and PLAN-WORKFLOW.md to .claude/docs/', () => {
+test('--context common copies common-README.md and INTERNALS.md to .claude/docs/ (PLAN-WORKFLOW relocated to app-dev contexts)', () => {
   const tmpDir = mkTmp();
   try {
     const result = runInstall(['--context', 'common', '--dir', tmpDir]);
@@ -251,7 +290,7 @@ test('--context common copies common-README.md, INTERNALS.md, and PLAN-WORKFLOW.
     const docsDir = path.join(tmpDir, '.claude', 'docs');
     assert.ok(fs.existsSync(path.join(docsDir, 'common-README.md')), 'common README must land in docs/');
     assert.ok(fs.existsSync(path.join(docsDir, 'INTERNALS.md')), 'INTERNALS.md must land in docs/');
-    assert.ok(fs.existsSync(path.join(docsDir, 'PLAN-WORKFLOW.md')), 'PLAN-WORKFLOW.md must land in docs/');
+    assert.ok(!fs.existsSync(path.join(docsDir, 'PLAN-WORKFLOW.md')), 'PLAN-WORKFLOW.md is app-dev only — must not land in common-only install');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -410,6 +449,101 @@ test('merged settings.json carries env and permissions from common', () => {
     assert.ok(settings.permissions.deny.includes('Bash(git push*)'));
     assert.ok(settings.permissions.deny.includes('Read(**/.env)'));
     assert.ok(settings.permissions.deny.includes('Read(**/.env.*)'));
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--context devops excludes app-only relocated files', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'devops', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const claudeDir = path.join(tmpDir, '.claude');
+    assert.ok(!fs.existsSync(path.join(claudeDir, 'agents', 'performance-optimizer.md')),
+      'performance-optimizer must not land in devops install');
+    assert.ok(!fs.existsSync(path.join(claudeDir, 'agents', 'refactor-cleaner.md')),
+      'refactor-cleaner must not land in devops install');
+    assert.ok(!fs.existsSync(path.join(claudeDir, 'skills', 'coding-standards')),
+      'coding-standards skill must not land in devops install');
+    assert.ok(!fs.existsSync(path.join(claudeDir, 'skills', 'production-patterns')),
+      'production-patterns skill must not land in devops install');
+    for (const s of ['codebase-onboarding', 'dependency-selection', 'verification-loop', 'docker-patterns', 'continuous-agent-loop', 'context-budget']) {
+      assert.ok(!fs.existsSync(path.join(claudeDir, 'skills', s)),
+        `${s} skill must not land in devops install`);
+    }
+    for (const s of ['k8s-troubleshooter', 'gitops-workflows', 'aws-cost-optimization', 'monitoring-observability']) {
+      assert.ok(fs.existsSync(path.join(claudeDir, 'skills', s, 'SKILL.md')),
+        `${s} skill must land in devops install`);
+    }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--context devops includes deployment-patterns with stack-aligned content', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'devops', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const skillPath = path.join(tmpDir, '.claude', 'skills', 'deployment-patterns', 'SKILL.md');
+    assert.ok(fs.existsSync(skillPath), 'deployment-patterns must land in devops install');
+    const content = fs.readFileSync(skillPath, 'utf8');
+    assert.match(content, /Argo Rollouts/, 'must reference Argo Rollouts');
+    assert.match(content, /argocd app rollback/, 'must reference argocd rollback');
+    assert.doesNotMatch(content, /GitHub Actions/, 'must not include GitHub Actions content');
+    assert.doesNotMatch(content, /FROM node/, 'must not include Docker authoring');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--context frontend includes all relocated app-only files', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'frontend', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const claudeDir = path.join(tmpDir, '.claude');
+    assert.ok(fs.existsSync(path.join(claudeDir, 'agents', 'performance-optimizer.md')));
+    assert.ok(fs.existsSync(path.join(claudeDir, 'agents', 'refactor-cleaner.md')));
+    assert.ok(fs.existsSync(path.join(claudeDir, 'skills', 'coding-standards')));
+    assert.ok(fs.existsSync(path.join(claudeDir, 'skills', 'production-patterns')));
+    for (const s of ['codebase-onboarding', 'dependency-selection', 'verification-loop', 'continuous-agent-loop', 'context-budget']) {
+      assert.ok(fs.existsSync(path.join(claudeDir, 'skills', s)), `${s} must land in frontend install`);
+    }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--context fastapi includes app-only files except coding-standards', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'fastapi', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const claudeDir = path.join(tmpDir, '.claude');
+    assert.ok(fs.existsSync(path.join(claudeDir, 'agents', 'performance-optimizer.md')));
+    assert.ok(fs.existsSync(path.join(claudeDir, 'agents', 'refactor-cleaner.md')));
+    assert.ok(fs.existsSync(path.join(claudeDir, 'skills', 'production-patterns')));
+    assert.ok(!fs.existsSync(path.join(claudeDir, 'skills', 'coding-standards')),
+      'coding-standards is JS/TS-focused; should not land in fastapi');
+    for (const s of ['codebase-onboarding', 'dependency-selection', 'verification-loop', 'continuous-agent-loop', 'context-budget']) {
+      assert.ok(fs.existsSync(path.join(claudeDir, 'skills', s)), `${s} must land in fastapi install`);
+    }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('--context devops,frontend includes app-only files (frontend brings them)', () => {
+  const tmpDir = mkTmp();
+  try {
+    const result = runInstall(['--context', 'devops,frontend', '--dir', tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const claudeDir = path.join(tmpDir, '.claude');
+    assert.ok(fs.existsSync(path.join(claudeDir, 'agents', 'performance-optimizer.md')));
+    assert.ok(fs.existsSync(path.join(claudeDir, 'skills', 'coding-standards')));
+    assert.ok(fs.existsSync(path.join(claudeDir, 'agents', 'terraform-reviewer.md')));
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

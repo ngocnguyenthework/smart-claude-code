@@ -1,150 +1,194 @@
 ---
 name: deployment-patterns
-description: Deployment strategies (rolling/blue-green/canary), Docker multi-stage builds, GitHub Actions CI/CD pipeline, health checks, k8s probes, rollback, and production readiness checklist.
+description: Progressive delivery for Kubernetes — rolling, blue-green, canary mapped onto ArgoCD, Argo Rollouts, Helm, Kustomize. Probes, PDB, HPA, rollback playbook, infra-only production-readiness checklist. Excludes Docker authoring + CI/CD pipelines (those live in app-dev contexts).
 
 ---
 
-# Deployment Patterns
+# Deployment Patterns (Infra)
 
 ## When to Use
 
-- Setting up CI/CD pipelines or Dockerizing an application
-- Choosing a deployment strategy (rolling, blue-green, canary)
-- Implementing health checks and readiness probes
-- Preparing for a production release
+- Choosing a rollout strategy for a K8s workload
+- Wiring liveness/readiness/startup probes
+- Adding PodDisruptionBudget or HorizontalPodAutoscaler to a workload
+- Drafting a rollback playbook before a release
+- Reviewing an ArgoCD `Application` or Argo Rollouts `Rollout` manifest
 
-## Deployment Strategies
+## Strategy → Stack Mapping
 
-| Strategy | Zero Downtime | Instant Rollback | Infrastructure Cost |
-|----------|--------------|-----------------|-------------------|
-| Rolling | Yes | No | 1x |
-| Blue-Green | Yes | Yes (swap back) | 2x |
-| Canary | Yes | Yes (pull 5%) | 1x + % |
+| Strategy | Zero Downtime | Instant Rollback | Stack |
+|---|---|---|---|
+| Rolling | Yes | No | K8s `Deployment.strategy.RollingUpdate` (default) |
+| Blue-Green | Yes | Yes (swap back) | Argo Rollouts `BlueGreen`, or two ArgoCD `Application`s + Service selector swap |
+| Canary | Yes | Yes (pull weight) | Argo Rollouts `Canary` with analysis templates, or Flagger |
 
-**Rolling** — replace instances gradually. Old and new run simultaneously → requires backward-compatible changes.
+- **Rolling** — old + new run simultaneously → schema/API changes must be backward-compatible. `maxSurge` + `maxUnavailable` control pace.
+- **Blue-Green** — full duplicate env. Cuts traffic atomically. 2x cost during cutover. Best for stateful or high-blast-radius services.
+- **Canary** — `setWeight: 5 → 25 → 50 → 100` gated on metric analysis. Catches issues at low blast radius. Needs traffic split (Istio / Gateway API / NGINX) + metric source (Prometheus / Datadog).
 
-**Blue-Green** — run two identical envs; switch traffic atomically. Best for critical services with zero tolerance for issues.
-
-**Canary** — route 5% → 50% → 100%. Catches issues before full rollout. Requires traffic splitting and monitoring.
-
-## Docker Multi-Stage Builds
-
-```dockerfile
-# Node.js — 3 stage pattern
-FROM node:22-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --production=false
-
-FROM node:22-alpine AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN npm run build && npm prune --production
-
-FROM node:22-alpine AS runner
-WORKDIR /app
-RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001
-USER appuser
-COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
-COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
-COPY --from=builder --chown=appuser:appgroup /app/package.json ./
-ENV NODE_ENV=production
-EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
-CMD ["node", "dist/server.js"]
-```
-
-Docker best practices: specific version tags, non-root user, `.dockerignore` (node_modules, .git, .env), HEALTHCHECK, resource limits.
-
-## GitHub Actions CI/CD
+## Argo Rollouts — Canary Pattern
 
 ```yaml
-name: CI/CD
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-      - run: npm ci && npm run lint && npm run typecheck && npm test -- --coverage
-
-  build:
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/build-push-action@v5
-        with:
-          push: true
-          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  deploy:
-    needs: build
-    if: github.ref == 'refs/heads/main'
-    environment: production
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Deploy ${{ github.sha }}"
-      # kubectl set image deployment/app app=ghcr.io/...:${{ github.sha }}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: api
+spec:
+  replicas: 6
+  strategy:
+    canary:
+      canaryService: api-canary
+      stableService: api-stable
+      trafficRouting:
+        istio:
+          virtualService: { name: api-vs, routes: [primary] }
+      steps:
+        - setWeight: 5
+        - pause: { duration: 5m }
+        - analysis:
+            templates:
+              - templateName: success-rate
+            args:
+              - name: service-name
+                value: api-canary
+        - setWeight: 25
+        - pause: { duration: 10m }
+        - setWeight: 50
+        - pause: { duration: 10m }
+        - setWeight: 100
+  selector:
+    matchLabels: { app: api }
+  template:
+    metadata:
+      labels: { app: api }
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/org/api@sha256:<digest>   # always digest in prod
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+spec:
+  args:
+    - name: service-name
+  metrics:
+    - name: success-rate
+      interval: 1m
+      successCondition: result[0] >= 0.99
+      failureLimit: 3
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring:9090
+          query: |
+            sum(rate(http_requests_total{service="{{args.service-name}}",code!~"5.."}[2m]))
+            / sum(rate(http_requests_total{service="{{args.service-name}}"}[2m]))
 ```
 
-Pipeline order: `PR: lint → typecheck → unit → integration → preview` | `Main: + build image → deploy staging → smoke tests → deploy prod`
+## Blue-Green — Argo Rollouts Pattern
 
-## Health Check Endpoint
-
-```typescript
-app.get('/health', (req, res) => res.json({ status: 'ok' }))
-
-app.get('/health/detailed', async (req, res) => {
-  const checks = { database: await checkDatabase(), redis: await checkRedis() }
-  const allOk = Object.values(checks).every(c => c.status === 'ok')
-  res.status(allOk ? 200 : 503).json({ status: allOk ? 'ok' : 'degraded', checks })
-})
+```yaml
+strategy:
+  blueGreen:
+    activeService: api-active
+    previewService: api-preview
+    autoPromotionEnabled: false        # require manual promotion
+    scaleDownDelaySeconds: 600         # keep old around for fast rollback
 ```
 
-Kubernetes probes: `livenessProbe` (interval: 30s, failureThreshold: 3), `readinessProbe` (interval: 10s), `startupProbe` (failureThreshold: 30 for slow starts).
+Promote with `kubectl argo rollouts promote api`. Roll back with `kubectl argo rollouts undo api` or, if already promoted, point `activeService.selector` back at the previous ReplicaSet.
 
-## Config Validation (Fail Fast)
+## Probes
 
-```typescript
-import { z } from 'zod'
-
-export const env = z.object({
-  NODE_ENV: z.enum(['development', 'staging', 'production']),
-  DATABASE_URL: z.string().url(),
-  JWT_SECRET: z.string().min(32),
-  PORT: z.coerce.number().default(3000),
-}).parse(process.env)
+```yaml
+livenessProbe:
+  httpGet: { path: /health, port: 8080 }
+  periodSeconds: 30
+  failureThreshold: 3
+readinessProbe:
+  httpGet: { path: /ready, port: 8080 }
+  periodSeconds: 10
+  failureThreshold: 3
+startupProbe:
+  httpGet: { path: /health, port: 8080 }
+  failureThreshold: 30
+  periodSeconds: 10
 ```
 
-## Rollback
+Rules:
+- `/health` 200 if process alive (no downstream calls) — restart on fail.
+- `/ready` 200 only when downstream deps reachable — pull from LB on fail.
+- `startupProbe` mandatory for any app slower than `livenessProbe.failureThreshold * periodSeconds` boot. Liveness is gated until startup succeeds.
+- Never share an endpoint between liveness and readiness.
+
+## PDB + HPA
+
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: api }
+spec:
+  minAvailable: 2
+  selector: { matchLabels: { app: api } }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: api }
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: api }
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300   # avoid flapping
+```
+
+Rules:
+- HA workloads always ship with PDB; `minAvailable` should not equal replica count (would block voluntary disruption forever).
+- HPA `minReplicas >= 3` for prod; otherwise PDB cannot be satisfied.
+
+## Rollback Playbook
 
 ```bash
-kubectl rollout undo deployment/app    # K8s: previous image
-vercel rollback                         # Vercel: previous deploy
-npx prisma migrate resolve --rolled-back <migration>  # DB
+# K8s native
+kubectl rollout history deployment/api
+kubectl rollout undo deployment/api                  # to previous revision
+kubectl rollout undo deployment/api --to-revision=N  # to specific revision
+
+# Argo Rollouts
+kubectl argo rollouts undo api
+kubectl argo rollouts get rollout api --watch
+
+# ArgoCD
+argocd app history <app>
+argocd app rollback <app> <revision-id>
+
+# Helm
+helm history <release> -n <ns>
+helm rollback <release> <revision> -n <ns>
 ```
 
-## Production Readiness Checklist
+Rules:
+- Roll back image, not config drift — fix config via PR, never via `kubectl edit`.
+- Destructive DB migrations are not reversible. Plan: expand → backfill → contract; roll forward with compensating migration on failure.
+- Rehearse rollback in staging on every release; treat the command as part of the runbook, not improvised.
 
-- [ ] Tests pass (unit, integration, E2E)
-- [ ] No hardcoded secrets; env vars validated at startup
-- [ ] `/health` endpoint works
-- [ ] Docker image uses pinned versions, non-root user
-- [ ] Resource limits set (CPU, memory)
-- [ ] Error rate alerts configured
-- [ ] Structured JSON logging, no PII
-- [ ] CORS, rate limiting, security headers (HSTS, CSP)
-- [ ] Rollback plan documented and tested
+## Production-Readiness Checklist (Infra)
+
+- [ ] Image pinned by digest (`@sha256:...`), never `:latest` or floating tags
+- [ ] `resources.requests` AND `resources.limits` set on every container
+- [ ] `livenessProbe`, `readinessProbe` (and `startupProbe` if slow start) defined
+- [ ] PodDisruptionBudget for replicas ≥ 2
+- [ ] HorizontalPodAutoscaler for variable load (or explicit "fixed-size" justification)
+- [ ] NetworkPolicy restricting ingress + egress (default-deny baseline)
+- [ ] `securityContext`: `runAsNonRoot: true`, `readOnlyRootFilesystem: true`, no privileged, capabilities dropped
+- [ ] ServiceAccount per workload; cluster-admin never used
+- [ ] RED alerts wired (rate, errors, duration) per service
+- [ ] Structured JSON logs shipped; no PII
+- [ ] ArgoCD Application has `finalizers: [resources-finalizer.argocd.argoproj.io]` and pinned `targetRevision` (tag/sha, never branch)
+- [ ] AppProject `sourceRepos` + `destinations` explicit (no wildcards in prod)
+- [ ] Rollback command documented + rehearsed in staging

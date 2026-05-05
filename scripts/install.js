@@ -35,6 +35,14 @@
  *                       want the target to match. Implies --force. Never touches
  *                       settings.json, .mcp.json, or .claude/.storage/.
  *   --skip-scripts      Don't copy .claude/scripts/hooks/ and .claude/scripts/lib/.
+ *   --exclude-commands <names>
+ *                       Comma-separated command basenames (no .md) to skip.
+ *                       Useful to opt out of slash commands you don't want
+ *                       installed. Example:
+ *                         --exclude-commands grill,checkpoint
+ *   --no-plan           Preset: skip the /plan family
+ *                       (plan, plans, plan-run, plan-discuss). Composes with
+ *                       --exclude-commands.
  *   --help              Show this help.
  *
  * Examples:
@@ -63,6 +71,7 @@ const path = require('path');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const CONTEXTS_ROOT = path.join(REPO_ROOT, 'contexts');
 const VALID_CONTEXTS = ['common', 'fastapi', 'nestjs', 'devops', 'frontend'];
+const PLAN_FAMILY = ['plan', 'plans', 'plan-run', 'plan-discuss'];
 
 function parseArgs(argv) {
   const args = {
@@ -73,6 +82,7 @@ function parseArgs(argv) {
     force: false,
     skipScripts: false,
     sync: false,
+    excludeCommands: new Set(),
     help: false,
   };
 
@@ -101,6 +111,14 @@ function parseArgs(argv) {
         break;
       case '--skip-scripts':
         args.skipScripts = true;
+        break;
+      case '--exclude-commands': {
+        const list = (argv[++i] || '').split(',').map(s => s.trim()).filter(Boolean);
+        for (const name of list) args.excludeCommands.add(name);
+        break;
+      }
+      case '--no-plan':
+        for (const name of PLAN_FAMILY) args.excludeCommands.add(name);
         break;
       case '--sync':
       case '-S':
@@ -290,8 +308,9 @@ function dirStem(target) {
   return '.claude';
 }
 
-function planCopies(contexts, target) {
+function planCopies(contexts, target, { excludeCommands } = {}) {
   const KINDS = ['agents', 'commands', 'rules', 'skills', 'contexts'];
+  const skip = excludeCommands || new Set();
   const copies = [];
   for (const ctx of contexts) {
     for (const kind of KINDS) {
@@ -299,6 +318,10 @@ function planCopies(contexts, target) {
       if (!fs.existsSync(srcDir)) continue;
       for (const abs of walkDir(srcDir)) {
         const relFromKind = path.relative(srcDir, abs);
+        if (kind === 'commands' && skip.size > 0) {
+          const base = path.basename(relFromKind, '.md');
+          if (skip.has(base)) continue;
+        }
         const mapped = remapForTarget(kind, relFromKind, target);
         if (mapped === null) continue;
         copies.push({ ctx, kind, src: abs, relTarget: mapped });
@@ -360,9 +383,12 @@ function planDocs(contexts, target) {
   if (fs.existsSync(internalsSrc)) {
     docs.push({ src: internalsSrc, relTarget: path.posix.join('docs', 'INTERNALS.md') });
   }
-  const planWorkflowSrc = path.join(CONTEXTS_ROOT, 'common', 'PLAN-WORKFLOW.md');
-  if (fs.existsSync(planWorkflowSrc)) {
-    docs.push({ src: planWorkflowSrc, relTarget: path.posix.join('docs', 'PLAN-WORKFLOW.md') });
+  for (const ctx of contexts) {
+    const planWorkflowSrc = path.join(CONTEXTS_ROOT, ctx, 'PLAN-WORKFLOW.md');
+    if (fs.existsSync(planWorkflowSrc)) {
+      docs.push({ src: planWorkflowSrc, relTarget: path.posix.join('docs', 'PLAN-WORKFLOW.md') });
+      break;
+    }
   }
   return docs;
 }
@@ -443,7 +469,11 @@ function main() {
 
   const plannedRelPaths = [];
 
-  for (const item of planCopies(contexts, args.target)) {
+  if (args.excludeCommands.size > 0) {
+    console.log(`[install] Excluded commands: ${[...args.excludeCommands].join(', ')}`);
+  }
+
+  for (const item of planCopies(contexts, args.target, { excludeCommands: args.excludeCommands })) {
     const dst = path.join(claudeDir, item.relTarget);
     const res = copyFile(item.src, dst, args);
     counts[res] = (counts[res] || 0) + 1;

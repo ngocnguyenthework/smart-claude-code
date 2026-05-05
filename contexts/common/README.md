@@ -12,10 +12,10 @@ The baseline bundle. **Always installed** with every `--context` selection. Ship
 
 | Folder | What's in it |
 |---|---|
-| `agents/` | 8 generalist agents (architect, planner, code-reviewer, code-explorer, refactor-cleaner, performance-optimizer, doc-updater, docs-lookup) |
+| `agents/` | 6 generalist agents (architect, planner, code-reviewer, code-explorer, doc-updater, docs-lookup). `refactor-cleaner` + `performance-optimizer` ship with frontend/nestjs/fastapi contexts. |
 | `commands/` | 12 workflow commands (`/plan`, `/plans`, `/plan-discuss`, `/plan-run`, `/do`, `/explain`, `/grill`, `/code-review`, `/refactor-clean`, `/build-fix`, `/checkpoint`, `/learn`, `/prompt-optimize`) |
 | `rules/common/` | cross-cutting style + security + testing rules |
-| `skills/` | 19 shared skills (agentic engineering, verification loops, codebase onboarding, autonomous loops, deep research, etc.) |
+| `skills/` | 17 shared skills (agentic engineering, verification loops, codebase onboarding, autonomous loops, deep research, etc.). `coding-standards` + `production-patterns` ship with app contexts (frontend/nestjs, plus fastapi for production-patterns). |
 | `contexts/` | `dev.md`, `research.md`, `review.md` session framings |
 | `settings.json` | baseline hook registrations |
 | `mcp-servers.json` | general-purpose MCP servers |
@@ -310,7 +310,7 @@ Invokes the code-reviewer (Sonnet). Reviews uncommitted changes by default.
 
 ### `/refactor-clean`
 
-Invokes the refactor-cleaner (Sonnet). Uses knip / depcheck / ts-prune / ruff to find dead code.
+Invokes the refactor-cleaner (Sonnet). Uses knip / depcheck / ts-prune / ruff to find dead code. *(refactor-cleaner agent ships with frontend/nestjs/fastapi contexts.)*
 
 **Use when:** you want to delete unused code safely. **Not** for feature work.
 
@@ -460,7 +460,7 @@ Most agents auto-invoke. Ask explicitly only when you want to bypass routing.
 |---|---|
 | A fresh design review | "Ask the architect to critique this approach…" |
 | A one-shot codemap | "Ask the code-explorer to map src/ for me…" |
-| Perf profiling on a specific path | "Ask performance-optimizer to profile X…" |
+| Perf profiling on a specific path | "Ask performance-optimizer to profile X…" *(requires frontend/nestjs/fastapi context)* |
 | Docs sync | "Ask doc-updater to sync README after this change…" |
 
 ---

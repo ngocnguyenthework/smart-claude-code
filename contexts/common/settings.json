@@ -194,6 +194,32 @@
           }
         ],
         "description": "Suggest strategic /compact at logical intervals (every COMPACT_THRESHOLD tool calls)"
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/skills/continuous-learning-v2/hooks/observe.sh\" pre",
+            "timeout": 5000,
+            "async": true
+          }
+        ],
+        "description": "continuous-learning-v2: capture pre-tool observation (project-scoped). Observer daemon disabled by default; enable in skills/continuous-learning-v2/config.json + run agents/start-observer.sh."
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/skills/continuous-learning-v2/hooks/observe.sh\" post",
+            "timeout": 5000,
+            "async": true
+          }
+        ],
+        "description": "continuous-learning-v2: capture post-tool observation (project-scoped)."
       }
     ],
     "PreCompact": [

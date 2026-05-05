@@ -1,6 +1,6 @@
 # Production-Readiness (CRITICAL)
 
-> Every plan, implementation, and review ships production-ready on the first pass. No `TODO(prod)`, no dev-only branches, no "wire it up later." Full anti-pattern catalog with correct designs lives in `skills/production-patterns/SKILL.md` — load that skill when planning or reviewing features touching file I/O, email, background jobs, DB queries, API design, auth, caching, or infra.
+> Every plan, implementation, and review ships production-ready on the first pass. No `TODO(prod)`, no dev-only branches, no "wire it up later." Full anti-pattern catalog with correct designs lives in `skills/production-patterns/SKILL.md` (ships with frontend/nestjs/fastapi contexts; absent in devops-only installs) — load that skill when planning or reviewing features touching file I/O, email, background jobs, DB queries, API design, auth, caching, or infra.
 
 ## Non-Negotiable Principles
 

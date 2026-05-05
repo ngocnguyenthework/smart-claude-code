@@ -48,7 +48,7 @@ test('every context has a valid mcp-servers.json', () => {
 
 test('common context ships baseline generalist agents', () => {
   const agentsDir = path.join(CONTEXTS_ROOT, 'common', 'agents');
-  const expected = ['architect.md', 'planner.md', 'code-reviewer.md', 'refactor-cleaner.md'];
+  const expected = ['architect.md', 'planner.md', 'code-reviewer.md'];
   for (const name of expected) {
     assert.ok(
       fs.existsSync(path.join(agentsDir, name)),
@@ -124,4 +124,30 @@ test('frontend context ships React/Next rules and reviewer', () => {
   assert.ok(fs.existsSync(path.join(frontend, 'rules', 'frontend')));
   assert.ok(fs.existsSync(path.join(frontend, 'agents', 'frontend-reviewer.md')));
   assert.ok(fs.existsSync(path.join(frontend, 'agents', 'e2e-runner.md')));
+});
+
+test('app contexts carry relocated app-only agents and skills', () => {
+  for (const ctx of ['frontend', 'nestjs', 'fastapi']) {
+    const dir = path.join(CONTEXTS_ROOT, ctx);
+    assert.ok(fs.existsSync(path.join(dir, 'agents', 'performance-optimizer.md')),
+      `${ctx} should carry performance-optimizer.md`);
+    assert.ok(fs.existsSync(path.join(dir, 'agents', 'refactor-cleaner.md')),
+      `${ctx} should carry refactor-cleaner.md`);
+    assert.ok(fs.existsSync(path.join(dir, 'skills', 'production-patterns')),
+      `${ctx} should carry production-patterns skill`);
+  }
+  for (const ctx of ['frontend', 'nestjs']) {
+    assert.ok(fs.existsSync(path.join(CONTEXTS_ROOT, ctx, 'skills', 'coding-standards')),
+      `${ctx} should carry coding-standards skill`);
+  }
+  assert.ok(!fs.existsSync(path.join(CONTEXTS_ROOT, 'fastapi', 'skills', 'coding-standards')),
+    'fastapi (Python) should NOT carry the JS/TS coding-standards skill');
+});
+
+test('common context no longer carries app-only agents/skills', () => {
+  const common = path.join(CONTEXTS_ROOT, 'common');
+  assert.ok(!fs.existsSync(path.join(common, 'agents', 'performance-optimizer.md')));
+  assert.ok(!fs.existsSync(path.join(common, 'agents', 'refactor-cleaner.md')));
+  assert.ok(!fs.existsSync(path.join(common, 'skills', 'coding-standards')));
+  assert.ok(!fs.existsSync(path.join(common, 'skills', 'production-patterns')));
 });

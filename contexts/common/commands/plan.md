@@ -189,11 +189,11 @@ The planner classifies intent at top-level and records a `Recommended Next Agent
 | Plan intent | Primary agent | Fallback |
 |---|---|---|
 | Build feature / scaffold / implement | `fastapi-implementer` / `nestjs-implementer` / `frontend-implementer` / `devops-implementer` | `architect` (design-only) |
-| Remove dead code / consolidate | `refactor-cleaner` | n/a |
+| Remove dead code / consolidate | `refactor-cleaner` *(frontend/nestjs/fastapi)* | n/a |
 | Build / type errors | `build-error-resolver` (stack-specific) | `/build-fix` |
 | Review existing code | `<stack>-reviewer` or `code-reviewer` | `code-reviewer` |
 | Docs / codemap | `doc-updater` | n/a |
-| Performance | `performance-optimizer` | n/a |
+| Performance | `performance-optimizer` *(frontend/nestjs/fastapi)* | n/a |
 | Architecture decision | `architect` / `aws-architect` | `architect` |
 | Database migration | `database-reviewer` + stack implementer | `code-reviewer` |
 | IaC security audit | `infra-security-reviewer` | `code-reviewer` |
@@ -250,7 +250,7 @@ Every plan — and every implementation via `/plan-run` — must be **production
 Enforcement points:
 
 1. **Planner dispatch (step 2)** — append verbatim:
-   > "Production-readiness non-negotiable. `TECH-SPEC.md` must cover env-driven config, secret handling, observability, rollout/rollback, avoid anti-patterns on first pass. Read `.claude/rules/common/production-readiness.md` + `.claude/skills/production-patterns/SKILL.md`. No `TODO(prod)`."
+   > "Production-readiness non-negotiable. `TECH-SPEC.md` must cover env-driven config, secret handling, observability, rollout/rollback, avoid anti-patterns on first pass. Read `.claude/rules/common/production-readiness.md` + `.claude/skills/production-patterns/SKILL.md` (if installed). No `TODO(prod)`."
    >
    > "Dependency approval non-negotiable. `TECH-SPEC.md` MUST include `## Dependencies` section with 2+ alternatives + stdlib baseline per new dep, or `_None — reuses existing stack._`. Read `.claude/rules/common/dependency-approval.md` + `.claude/skills/dependency-selection/SKILL.md`."
 
