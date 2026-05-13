@@ -7,10 +7,6 @@
   },
   "permissions": {
     "deny": [
-      "Bash(git add*)",
-      "Bash(git commit*)",
-      "Bash(git push*)",
-
       "Read(**/.env)",
       "Read(**/.env.*)",
       "Read(**/.envrc)",
@@ -48,6 +44,13 @@
       "Write(**/.env)",
       "Write(**/.env.*)",
 
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(git rebase:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
       "Bash(cat *.env*)",
       "Bash(cat *.pem)",
       "Bash(cat *.key)",
